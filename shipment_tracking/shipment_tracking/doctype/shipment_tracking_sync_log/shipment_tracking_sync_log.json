@@ -1,0 +1,41 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "direction",
+  "action",
+  "reference_doctype",
+  "reference_name",
+  "shipkia_order_id",
+  "http_status",
+  "status",
+  "error_message",
+  "request_json",
+  "response_json"
+ ],
+ "fields": [
+  {"fieldname": "direction", "fieldtype": "Select", "label": "Direction", "options": "Outbound\nInbound", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "action", "fieldtype": "Data", "label": "Action", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "reference_doctype", "fieldtype": "Data", "label": "Reference DocType"},
+  {"fieldname": "reference_name", "fieldtype": "Data", "label": "Reference Name", "in_list_view": 1},
+  {"fieldname": "shipkia_order_id", "fieldtype": "Data", "label": "Shipkia Order ID", "in_list_view": 1},
+  {"fieldname": "http_status", "fieldtype": "Int", "label": "HTTP Status"},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Running\nSuccess\nFailed", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "error_message", "fieldtype": "Long Text", "label": "Error Message"},
+  {"fieldname": "request_json", "fieldtype": "Long Text", "label": "Request JSON"},
+  {"fieldname": "response_json", "fieldtype": "Long Text", "label": "Response JSON"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "module": "Shipment Tracking",
+ "name": "Shipment Tracking Sync Log",
+ "permissions": [
+  {"create": 1, "read": 1, "write": 1, "delete": 1, "role": "System Manager"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
