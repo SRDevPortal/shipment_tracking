@@ -1,15 +1,28 @@
 import frappe
 
-
 MODULE_NAME = "Shipment Tracking"
 
 
 def create_cf_with_module(fieldmap: dict[str, list[dict]]):
     for dt, fields in fieldmap.items():
         for field in fields:
-            existing = frappe.db.get_value("Custom Field", {"dt": dt, "fieldname": field["fieldname"]}, "name")
+
+            # ✅ ADD THIS BLOCK HERE
+            if field.get("fieldtype") == "Link":
+                if not frappe.db.exists("DocType", field.get("options")):
+                    frappe.throw(
+                        f"❌ DocType '{field.get('options')}' not found. Install order issue."
+                    )
+
+            # existing check
+            existing = frappe.db.get_value(
+                "Custom Field",
+                {"dt": dt, "fieldname": field["fieldname"]},
+                "name"
+            )
             if existing:
                 continue
+
             doc = frappe.get_doc({
                 "doctype": "Custom Field",
                 "dt": dt,
