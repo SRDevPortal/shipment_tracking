@@ -70,7 +70,7 @@ def sync_tracking_by_order_id(order_id: str):
         body = safe_response_json(response)
     except Exception:
         log.status = "Failed"
-        log.error_message = frappe.get_traceback()
+        log.error_message = str(frappe.get_traceback())
         log.save(ignore_permissions=True)
         raise
 
@@ -78,7 +78,11 @@ def sync_tracking_by_order_id(order_id: str):
     log.response_json = safe_json(body)
     if response.status_code not in (200, 201, 202):
         log.status = "Failed"
-        log.error_message = body.get("message") if isinstance(body, dict) else response.text
+        log.error_message = (
+            safe_json(body.get("message"))
+            if isinstance(body, dict)
+            else str(response.text)
+        )
         log.save(ignore_permissions=True)
         frappe.throw("Shipkia tracking sync failed. Check Shipment Tracking Sync Log.")
 
@@ -184,20 +188,33 @@ def sync_timeline(shipment, timeline_rows: list[dict]):
 
 
 def mirror_summary_fields(shipment, sales_invoice: str | None, encounter_name: str | None):
-    values = {
-        "shipkia_order_id": shipment.shipkia_order_id,
-        "shipkia_awb_number": shipment.shipkia_awb_number,
-        "shipkia_status": shipment.shipkia_status,
-        "shipkia_estimated_delivery": shipment.shipkia_estimated_delivery,
-        "shipkia_delivered_on": shipment.shipkia_delivered_on,
-        "shipkia_shipment": shipment.name,
+
+    # Sales Invoice fields
+    si_values = {
+        "si_shipkia_order_id": shipment.shipkia_order_id,
+        "si_shipkia_awb_number": shipment.shipkia_awb_number,
+        "si_shipkia_status": shipment.shipkia_status,
+        "si_shipkia_estimated_delivery": shipment.shipkia_estimated_delivery,
+        "si_shipkia_delivered_on": shipment.shipkia_delivered_on,
+        "si_shipkia_shipment": shipment.name,
     }
-    update_doc_if_exists("Sales Invoice", sales_invoice, values)
-    update_doc_if_exists("Patient Encounter", encounter_name, values)
+
+    # Patient Encounter fields
+    pe_values = {
+        "pe_shipkia_order_id": shipment.shipkia_order_id,
+        "pe_shipkia_awb_number": shipment.shipkia_awb_number,
+        "pe_shipkia_status": shipment.shipkia_status,
+        "pe_shipkia_estimated_delivery": shipment.shipkia_estimated_delivery,
+        "pe_shipkia_delivered_on": shipment.shipkia_delivered_on,
+        "pe_shipkia_shipment": shipment.name,
+    }
+
+    update_doc_if_exists("Sales Invoice", sales_invoice, si_values)
+    update_doc_if_exists("Patient Encounter", encounter_name, pe_values)
 
 
 def get_linked_encounter(si):
-    for fieldname in ("source_encounter", "patient_encounter", "sr_patient_encounter", "reference_name"):
+    for fieldname in ("si_source_encounter", "patient_encounter", "sr_patient_encounter", "reference_name"):
         value = getattr(si, fieldname, None)
         if value and frappe.db.exists("Patient Encounter", value):
             return frappe.get_doc("Patient Encounter", value)
