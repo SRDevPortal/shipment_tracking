@@ -5,7 +5,7 @@ frappe.ui.form.on("Sales Invoice", {
         }
 
         if (!frm.doc.shipkia_order_id) {
-            frm.add_custom_button(__("Send to Shipkia"), () => {
+            frm.add_custom_button(__("Send to Shipkia2"), () => {
                 frappe.confirm("Create Shipkia order for this Sales Invoice?", () => {
                     frappe.call({
                         method: "shipment_tracking.api.order.create_order_for_sales_invoice",
@@ -22,7 +22,7 @@ frappe.ui.form.on("Sales Invoice", {
                 });
             }, __("Actions"));
         } else {
-            frm.add_custom_button(__("Resend to Shipkia"), () => {
+            frm.add_custom_button(__("Resend to Shipkia2"), () => {
                 frappe.confirm("This invoice already has a Shipkia order. Create again anyway?", () => {
                     frappe.call({
                         method: "shipment_tracking.api.order.create_order_for_sales_invoice",
