@@ -6,4 +6,5 @@ def after_install():
 
 
 def after_migrate():
-    setup_all()
+    # DO NOT reload doctypes here
+    setup_all(skip_reload=True)
