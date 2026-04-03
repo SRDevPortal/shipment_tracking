@@ -16,10 +16,16 @@ doctype_js = {
 
 fixtures = []
 
-scheduler_events = {
-    "cron": {
-        "0 * * * *": [
-            "shipment_tracking.api.tracking.sync_active_shipments",
-        ]
-    }
-}
+# scheduler_events = {
+#     "hourly": [
+#         "shipment_tracking.api.tracking.sync_active_shipments",
+#     ]
+# }
+
+# scheduler_events = {
+#     "cron": {
+#         "0 * * * *": [
+#             "shipment_tracking.api.tracking.sync_active_shipments",
+#         ]
+#     }
+# }
