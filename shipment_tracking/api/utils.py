@@ -38,11 +38,18 @@ def safe_json(value: Any) -> str:
     return json.dumps(value, indent=2, default=str)
 
 
-def first_order_id(response_json: dict[str, Any]) -> str:
-    docs = response_json.get("docs") or []
-    if docs and isinstance(docs[0], dict):
-        return cstr(docs[0].get("name"))
-    return ""
+def first_order_id(body):
+    if not isinstance(body, dict):
+        return None
+
+    message = body.get("message") or {}
+
+    if isinstance(message, dict):
+        docs = message.get("docs") or []
+        if isinstance(docs, list) and docs:
+            return docs[0].get("name")
+
+    return None
 
 
 def tracking_result(response_json: dict[str, Any]) -> dict[str, Any]:
