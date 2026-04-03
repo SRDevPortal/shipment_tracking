@@ -1,6 +1,5 @@
 from .utils import create_cf_with_module
 
-
 DT = "Patient Encounter"
 ONLINE_ONLY = 'eval:doc.sr_encounter_place=="Online"'
 
@@ -10,61 +9,68 @@ def apply():
         {
             DT: [
                 {
-                    "fieldname": "shipment_tracking_section",
+                    "fieldname": "pe_shipment_tracking_tab",
                     "label": "Shipment Tracking",
+                    "fieldtype": "Tab Break",
+                    "insert_after": "clinical_notes",
+                },
+                {
+                    "fieldname": "pe_shipment_tracking_section",
                     "fieldtype": "Section Break",
-                    "insert_after": "sr_encounter_status",
+                    "insert_after": "pe_shipment_tracking_tab",
                     "collapsible": 1,
                     "depends_on": ONLINE_ONLY,
                 },
                 {
-                    "fieldname": "shipkia_order_id",
+                    "fieldname": "pe_shipkia_order_id",
                     "label": "Shipkia Order ID",
                     "fieldtype": "Data",
                     "read_only": 1,
                     "depends_on": ONLINE_ONLY,
-                    "insert_after": "shipment_tracking_section",
+                    "in_standard_filter": 1,
+                    "insert_after": "pe_shipment_tracking_section",
                 },
                 {
-                    "fieldname": "shipkia_awb_number",
+                    "fieldname": "pe_shipkia_awb_number",
                     "label": "Shipkia AWB Number",
                     "fieldtype": "Data",
                     "read_only": 1,
                     "depends_on": ONLINE_ONLY,
-                    "insert_after": "shipkia_order_id",
+                    "insert_after": "pe_shipkia_order_id",
                 },
                 {
-                    "fieldname": "shipkia_status",
+                    "fieldname": "pe_shipkia_status",
                     "label": "Shipkia Status",
                     "fieldtype": "Data",
                     "read_only": 1,
                     "depends_on": ONLINE_ONLY,
-                    "insert_after": "shipkia_awb_number",
+                    "in_standard_filter": 1,
+                    "insert_after": "pe_shipkia_awb_number",
                 },
                 {
-                    "fieldname": "shipkia_estimated_delivery",
-                    "label": "Shipkia Estimated Delivery",
+                    "fieldname": "pe_shipkia_estimated_delivery",
+                    "label": "Estimated Delivery",
                     "fieldtype": "Datetime",
                     "read_only": 1,
                     "depends_on": ONLINE_ONLY,
-                    "insert_after": "shipkia_status",
+                    "insert_after": "pe_shipkia_status",
                 },
                 {
-                    "fieldname": "shipkia_delivered_on",
-                    "label": "Shipkia Delivered On",
+                    "fieldname": "pe_shipkia_delivered_on",
+                    "label": "Delivered On",
                     "fieldtype": "Datetime",
                     "read_only": 1,
                     "depends_on": ONLINE_ONLY,
-                    "insert_after": "shipkia_estimated_delivery",
+                    "insert_after": "pe_shipkia_estimated_delivery",
                 },
                 {
-                    "fieldname": "shipkia_shipment",
+                    "fieldname": "pe_shipkia_shipment",
                     "label": "Shipment Record",
                     "fieldtype": "Link",
                     "options": "Shipment Tracking Shipment",
                     "read_only": 1,
                     "depends_on": ONLINE_ONLY,
-                    "insert_after": "shipkia_delivered_on",
+                    "insert_after": "pe_shipkia_delivered_on",
                 },
             ]
         }
