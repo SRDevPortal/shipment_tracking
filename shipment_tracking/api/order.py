@@ -208,21 +208,51 @@ def join_address(address_doc) -> str:
     return ", ".join(filter(None, [cstr(address_doc.address_line1), cstr(address_doc.address_line2)]))
 
 
-def normalize_phone(phone: str | None) -> str:
-    phone = cstr(phone or "").strip().replace(" ", "").replace("-", "")
+# def normalize_phone(phone: str | None) -> str:
+#     phone = cstr(phone or "").strip().replace(" ", "").replace("-", "")
 
+#     if phone.startswith("0"):
+#         phone = phone[1:]
+
+#     if phone.startswith("+91"):
+#         phone = phone[3:]
+#     elif phone.startswith("91") and len(phone) == 12:
+#         phone = phone[2:]
+
+#     if len(phone) == 10 and phone.isdigit():
+#         return f"+91{phone}"
+
+#     frappe.throw("Invalid mobile number")
+
+
+def normalize_phone(phone: str | None) -> str:
+    phone = cstr(phone or "").strip()
+
+    # Remove spaces, dashes, brackets
+    phone = (
+        phone.replace(" ", "")
+        .replace("-", "")
+        .replace("(", "")
+        .replace(")", "")
+    )
+
+    # Remove leading +
+    if phone.startswith("+"):
+        phone = phone[1:]
+
+    # Remove leading 0
     if phone.startswith("0"):
         phone = phone[1:]
 
-    if phone.startswith("+91"):
-        phone = phone[3:]
-    elif phone.startswith("91") and len(phone) == 12:
-        phone = phone[2:]
+    # If starts with 91 → keep last 10 digits
+    if phone.startswith("91") and len(phone) >= 12:
+        phone = phone[-10:]
 
+    # Validate
     if len(phone) == 10 and phone.isdigit():
         return f"+91{phone}"
 
-    frappe.throw("Invalid mobile number")
+    frappe.throw(f"Invalid mobile number: {phone}")
 
 
 def get_tax_rate(si) -> float:
