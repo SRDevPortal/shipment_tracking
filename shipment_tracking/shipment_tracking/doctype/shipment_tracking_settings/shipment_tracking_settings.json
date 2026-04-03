@@ -11,23 +11,95 @@
   "order_channel",
   "api_key",
   "api_secret",
+  "webhook_secret",
+  "enable_webhook_security",
   "default_parcel_length",
   "default_parcel_breadth",
   "default_parcel_height",
   "default_dead_weight"
  ],
  "fields": [
-  {"fieldname": "enabled", "fieldtype": "Check", "label": "Enabled", "default": "0"},
-  {"fieldname": "create_order_url", "fieldtype": "Data", "label": "Create Order URL", "reqd": 1},
-  {"fieldname": "tracking_url", "fieldtype": "Data", "label": "Tracking URL", "reqd": 1},
-  {"fieldname": "pickup_address", "fieldtype": "Data", "label": "Pickup Address", "reqd": 1},
-  {"fieldname": "order_channel", "fieldtype": "Data", "label": "Order Channel", "default": "Custom", "reqd": 1},
-  {"fieldname": "api_key", "fieldtype": "Password", "label": "API Key", "reqd": 1},
-  {"fieldname": "api_secret", "fieldtype": "Password", "label": "API Secret", "reqd": 1},
-  {"fieldname": "default_parcel_length", "fieldtype": "Float", "label": "Default Parcel Length", "default": "1"},
-  {"fieldname": "default_parcel_breadth", "fieldtype": "Float", "label": "Default Parcel Breadth", "default": "1"},
-  {"fieldname": "default_parcel_height", "fieldtype": "Float", "label": "Default Parcel Height", "default": "1"},
-  {"fieldname": "default_dead_weight", "fieldtype": "Float", "label": "Default Dead Weight", "default": "0.1"}
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "0"
+  },
+  {
+   "fieldname": "create_order_url",
+   "fieldtype": "Data",
+   "label": "Create Order URL",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tracking_url",
+   "fieldtype": "Data",
+   "label": "Tracking URL",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pickup_address",
+   "fieldtype": "Data",
+   "label": "Pickup Address",
+   "reqd": 1
+  },
+  {
+   "fieldname": "order_channel",
+   "fieldtype": "Data",
+   "label": "Order Channel",
+   "default": "Custom",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_secret",
+   "fieldtype": "Password",
+   "label": "API Secret",
+   "reqd": 1
+  },
+  {
+   "fieldname": "webhook_secret",
+   "fieldtype": "Password",
+   "label": "Webhook Secret",
+   "description": "Secret key for validating incoming webhooks",
+   "insert_after": "api_secret"
+  },
+  {
+   "fieldname": "enable_webhook_security",
+   "fieldtype": "Check",
+   "label": "Enable Webhook Security",
+   "default": "1",
+   "insert_after": "webhook_secret"
+  },
+  {
+   "fieldname": "default_parcel_length",
+   "fieldtype": "Float",
+   "label": "Default Parcel Length",
+   "default": "1"
+  },
+  {
+   "fieldname": "default_parcel_breadth",
+   "fieldtype": "Float",
+   "label": "Default Parcel Breadth",
+   "default": "1"
+  },
+  {
+   "fieldname": "default_parcel_height",
+   "fieldtype": "Float",
+   "label": "Default Parcel Height",
+   "default": "1"
+  },
+  {
+   "fieldname": "default_dead_weight",
+   "fieldtype": "Float",
+   "label": "Default Dead Weight",
+   "default": "0.1"
+  }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
@@ -35,7 +107,13 @@
  "module": "Shipment Tracking",
  "name": "Shipment Tracking Settings",
  "permissions": [
-  {"create": 1, "read": 1, "write": 1, "delete": 0, "role": "System Manager"}
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "delete": 0,
+   "role": "System Manager"
+  }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
