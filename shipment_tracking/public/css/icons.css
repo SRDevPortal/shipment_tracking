@@ -1,0 +1,21 @@
+.sidebar-item-icon[item-icon="shipment-truck"] {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-item-icon[item-icon="shipment-truck"] svg {
+    display: none;
+}
+
+.sidebar-item-icon[item-icon="shipment-truck"]::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    background-image: url("/assets/shipment_tracking/icons/truck.svg");
+    background-size: 16px 16px;
+    background-repeat: no-repeat;
+    display: inline-block;
+}
