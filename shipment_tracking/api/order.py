@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from typing import Any
-
 import frappe
 import requests
-import json
 from frappe.utils import cstr
 
 from .utils import first_order_id, get_settings, make_auth_headers, safe_json, safe_response_json
@@ -58,10 +56,10 @@ def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
         log.error_message = safe_json(body)
         log.save(ignore_permissions=True)
         frappe.db.commit()
-
         frappe.throw(f"Shipkia Error: {safe_json(body)}")
 
     order_id = first_order_id(body)
+
     if not order_id:
         log.status = "Failed"
         log.error_message = "Missing order id in response"
@@ -95,15 +93,21 @@ def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
     }
 
 
-# ---------------------------------------------------------
-# Payload Builder (🔥 FIXED)
-# ---------------------------------------------------------
+# =========================================================
+# PAYLOAD BUILDER (🔥 FIXED)
+# =========================================================
 def build_payload_from_sales_invoice(si, settings) -> dict[str, Any]:
 
     shipping = get_shipping_address(si)
     billing = get_billing_address(si)
 
     billing_same_as_delivery = bool(shipping.name == billing.name)
+
+    mobile = get_contact_mobile(si)
+    frappe.logger().info(f"RAW MOBILE: {mobile}")
+
+    normalized_mobile = normalize_phone(mobile)
+    frappe.logger().info(f"FINAL MOBILE: {normalized_mobile}")
 
     products = []
 
@@ -126,21 +130,21 @@ def build_payload_from_sales_invoice(si, settings) -> dict[str, Any]:
         "order_channel": settings.order_channel,
 
         "delivery_full_name": si.customer_name,
-        "delivery_phone_number": normalize_phone(si.contact_mobile),
+        "delivery_phone_number": normalized_mobile,
         "delivery_email": si.contact_email or "",
         "delivery_address": join_address(shipping),
         "delivery_city": shipping.city,
         "delivery_state": shipping.state,
         "delivery_pincode": shipping.pincode,
 
-        "billing_same_as_delivery": True if billing_same_as_delivery else False,
+        "billing_same_as_delivery": billing_same_as_delivery,
     }
 
     # Only send billing block if DIFFERENT
     if not billing_same_as_delivery:
         payload.update({
             "billing_full_name": si.customer_name,
-            "billing_phone_number": normalize_phone(si.contact_mobile),
+            "billing_phone_number": normalized_mobile,
             "billing_address": join_address(billing),
             "billing_city": billing.city,
             "billing_state": billing.state,
@@ -166,28 +170,62 @@ def build_payload_from_sales_invoice(si, settings) -> dict[str, Any]:
     return payload
 
 
-# ---------------------------------------------------------
-# Sync Log
-# ---------------------------------------------------------
-def make_sync_log(direction: str, action: str, reference_doctype: str, reference_name: str, request_json: dict[str, Any]):
+# =========================================================
+# 🔥 MOBILE FETCH (NEW - CRITICAL FIX)
+# =========================================================
+def get_contact_mobile(si):
 
-    log = frappe.get_doc({
-        "doctype": "Shipment Tracking Sync Log",
-        "direction": direction,
-        "action": action,
-        "reference_doctype": reference_doctype,
-        "reference_name": reference_name,
-        "request_json": safe_json(request_json),
-        "status": "Running",
-    }).insert(ignore_permissions=True)
+    # 1. Try Contact Person
+    if si.contact_person:
+        contact = frappe.get_doc("Contact", si.contact_person)
 
-    frappe.db.commit()
-    return log
+        if contact.mobile_no:
+            return contact.mobile_no
+
+        if contact.phone:
+            return contact.phone
+
+    # 2. Try Sales Invoice field
+    if getattr(si, "contact_mobile", None):
+        return si.contact_mobile
+
+    # 3. Try Address (sometimes stored there)
+    if si.customer_address:
+        addr = frappe.get_doc("Address", si.customer_address)
+        if addr.phone:
+            return addr.phone
+
+    # ❌ Final fail (IMPORTANT for debugging)
+    frappe.throw("❌ Mobile number not found in Contact, Address, or Sales Invoice")
 
 
-# ---------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------
+# =========================================================
+# 🔥 NORMALIZE PHONE (ULTRA SAFE)
+# =========================================================
+def normalize_phone(phone: str | None) -> str:
+
+    phone = cstr(phone or "").strip()
+
+    # keep only digits
+    phone = "".join(filter(str.isdigit, phone))
+
+    # handle country code
+    if phone.startswith("91") and len(phone) > 10:
+        phone = phone[-10:]
+
+    if phone.startswith("0") and len(phone) > 10:
+        phone = phone[-10:]
+
+    if len(phone) == 10:
+        # ✅ ADD HYPHEN HERE
+        return f"+91-{phone}"
+
+    frappe.throw(f"Invalid mobile number after cleanup: {phone}")
+
+
+# =========================================================
+# HELPERS
+# =========================================================
 def get_shipping_address(si):
     if si.shipping_address_name:
         return frappe.get_doc("Address", si.shipping_address_name)
@@ -208,55 +246,27 @@ def join_address(address_doc) -> str:
     return ", ".join(filter(None, [cstr(address_doc.address_line1), cstr(address_doc.address_line2)]))
 
 
-# def normalize_phone(phone: str | None) -> str:
-#     phone = cstr(phone or "").strip().replace(" ", "").replace("-", "")
-
-#     if phone.startswith("0"):
-#         phone = phone[1:]
-
-#     if phone.startswith("+91"):
-#         phone = phone[3:]
-#     elif phone.startswith("91") and len(phone) == 12:
-#         phone = phone[2:]
-
-#     if len(phone) == 10 and phone.isdigit():
-#         return f"+91{phone}"
-
-#     frappe.throw("Invalid mobile number")
-
-
-def normalize_phone(phone: str | None) -> str:
-    phone = cstr(phone or "").strip()
-
-    # Remove spaces, dashes, brackets
-    phone = (
-        phone.replace(" ", "")
-        .replace("-", "")
-        .replace("(", "")
-        .replace(")", "")
-    )
-
-    # Remove leading +
-    if phone.startswith("+"):
-        phone = phone[1:]
-
-    # Remove leading 0
-    if phone.startswith("0"):
-        phone = phone[1:]
-
-    # If starts with 91 → keep last 10 digits
-    if phone.startswith("91") and len(phone) >= 12:
-        phone = phone[-10:]
-
-    # Validate
-    if len(phone) == 10 and phone.isdigit():
-        return f"+91{phone}"
-
-    frappe.throw(f"Invalid mobile number: {phone}")
-
-
 def get_tax_rate(si) -> float:
     for tax in si.taxes or []:
         if (tax.rate or 0) > 0:
             return tax.rate
     return 0
+
+
+# =========================================================
+# SYNC LOG
+# =========================================================
+def make_sync_log(direction: str, action: str, reference_doctype: str, reference_name: str, request_json: dict[str, Any]):
+
+    log = frappe.get_doc({
+        "doctype": "Shipment Tracking Sync Log",
+        "direction": direction,
+        "action": action,
+        "reference_doctype": reference_doctype,
+        "reference_name": reference_name,
+        "request_json": safe_json(request_json),
+        "status": "Running",
+    }).insert(ignore_permissions=True)
+
+    frappe.db.commit()
+    return log
