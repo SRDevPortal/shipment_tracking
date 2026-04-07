@@ -1,6 +1,8 @@
 import frappe
-from .sales_invoice import apply as apply_sales_invoice
-from .patient_encounter import apply as apply_patient_encounter
+from shipment_tracking.setup.sales_invoice import apply as apply_sales_invoice
+from shipment_tracking.setup.patient_encounter import apply as apply_patient_encounter
+from shipment_tracking.setup.module import create_module_def
+from shipment_tracking.workspace import create_workspace
 
 
 def setup_all(skip_reload=False):
@@ -20,13 +22,23 @@ def setup_all(skip_reload=False):
                 frappe.reload_doc("shipment_tracking", "doctype", dt)
 
         # --------------------------------------------------
-        # 2. Apply customizations (safe after reload)
+        # 2. Apply customizations
         # --------------------------------------------------
         apply_sales_invoice()
         apply_patient_encounter()
 
         # --------------------------------------------------
-        # 3. Commit (important for scripts)
+        # 3. Create module first (since workspace needs it)
+        # --------------------------------------------------
+        create_module_def()
+
+        # --------------------------------------------------
+        # 4. Create Workspace
+        # --------------------------------------------------
+        create_workspace()
+
+        # --------------------------------------------------
+        # 5. Commit
         # --------------------------------------------------
         frappe.db.commit()
         frappe.clear_cache()
