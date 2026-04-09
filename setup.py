@@ -1,16 +1,12 @@
-import setuptools
+from setuptools import setup, find_packages
 
-with open("requirements.txt") as f:
-    install_requires = [line for line in f.read().strip().split("\n") if line]
-
-setuptools.setup(
+setup(
     name="shipment_tracking",
     version="0.0.1",
-    author="Admin",
-    author_email="admin@example.com",
-    description="Shipment Tracking App",
-    packages=setuptools.find_packages(),
-    zip_safe=False,
+    description="Shipkia shipment sync and tracking for ERPNext",
+    author="SRIAAS",
+    author_email="webdevelopersriaas@gmail.com",
+    packages=find_packages(),
     include_package_data=True,
-    install_requires=install_requires,
+    zip_safe=False,
 )
