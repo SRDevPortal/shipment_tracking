@@ -1,12 +1,14 @@
 [project]
 name = "shipment_tracking"
-authors = [
-    { name = "SRIAAS", email = "webdevelopersriaas@gmail.com" }
-]
-description = "Shipkia shipment sync and tracking for ERPNext."
-requires-python = ">=3.10"
-dependencies = []
 version = "0.0.1"
+description = "Shipkia shipment sync and tracking for ERPNext"
+authors = [
+  { name = "SRIAAS", email = "webdevelopersriaas@gmail.com" }
+]
+
+requires-python = ">=3.10"
+
+dependencies = []
 
 [build-system]
 requires = ["flit_core >=3.4,<4"]
