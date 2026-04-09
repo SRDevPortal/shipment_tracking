@@ -3,13 +3,12 @@ app_title = "Shipment Tracking"
 app_publisher = "SRIAAS"
 app_description = "Shipkia shipment sync and tracking for ERPNext."
 app_email = "webdevelopersriaas@gmail.com"
-app_license = "mit"
+app_license = "MIT"
 
 after_install = "shipment_tracking.install.after_install"
 after_migrate = "shipment_tracking.install.after_migrate"
 
 app_include_css = "/assets/shipment_tracking/css/icons.css"
-
 app_include_js = "/assets/shipment_tracking/js/icons.js"
 
 doctype_js = {
