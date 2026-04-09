@@ -28,23 +28,26 @@ def setup_all(skip_reload=False):
         apply_patient_encounter()
 
         # --------------------------------------------------
-        # 3. Create module first (since workspace needs it)
+        # 3. Create Module Def (only if not exists)
         # --------------------------------------------------
-        create_module_def()
+        if not frappe.db.exists("Module Def", "Shipment Tracking"):
+            create_module_def()
 
         # --------------------------------------------------
-        # 4. Create Workspace
+        # 4. Create Workspace (only if not exists)
         # --------------------------------------------------
-        create_workspace()
+        if not frappe.db.exists("Workspace", {"module": "Shipment Tracking"}):
+            create_workspace()
 
         # --------------------------------------------------
-        # 5. Commit
+        # 5. Clear cache
         # --------------------------------------------------
-        frappe.db.commit()
         frappe.clear_cache()
 
-        frappe.logger().info("Shipment Tracking setup completed successfully")
+        frappe.logger("shipment_tracking").info(
+            "Shipment Tracking setup completed successfully"
+        )
 
-    except Exception:
+    except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Shipment Tracking Setup Failed")
         raise
