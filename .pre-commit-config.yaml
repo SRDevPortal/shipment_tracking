@@ -1,0 +1,60 @@
+exclude: 'node_modules|.git|dist'
+default_stages: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ".*json$|.*txt$|.*csv$|.*md$|.*svg$"
+      - id: check-merge-conflict
+      - id: check-ast
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.1
+    hooks:
+      - id: ruff
+        name: Run Ruff Import Sorter
+        args: ["--select=I", "--fix"]
+
+      - id: ruff
+        name: Run Ruff Linter
+
+      - id: ruff-format
+        name: Run Ruff Formatter
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v2.7.1
+    hooks:
+      - id: prettier
+        types_or: [javascript, vue, scss, css, json]
+        exclude: |
+          (?x)^(
+              shipment_tracking/public/dist/.*|
+              .*node_modules.*|
+              shipment_tracking/public/js/lib/.*
+          )$
+
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.44.0
+    hooks:
+      - id: eslint
+        types_or: [javascript]
+        args: ["--quiet"]
+        exclude: |
+          (?x)^(
+              shipment_tracking/public/dist/.*|
+              .*node_modules.*|
+              cypress/.*|
+              shipment_tracking/public/js/lib/.*
+          )$
+
+ci:
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false
