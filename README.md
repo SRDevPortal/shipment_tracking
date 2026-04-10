@@ -15,7 +15,7 @@ It enables ERPNext users to automatically create, sync, and monitor shipment rec
 - Mirror shipment details to **Patient Encounter**
 - Add **tracking and shipment action buttons** on Sales Invoice
 - Automatically display shipment fields only for **online encounters**
-- Maintain real-time shipment visibility inside ERPNext
+- Maintain real-time shipment visibility inside **ERPNext**
 
 ---
 
