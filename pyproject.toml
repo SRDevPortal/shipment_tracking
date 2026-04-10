@@ -6,13 +6,17 @@ authors = [
   { name = "SRIAAS", email = "webdevelopersriaas@gmail.com" }
 ]
 
+readme = "README.md"
 requires-python = ">=3.10"
 
-dependencies = []
+dependencies = [
+    # "frappe~=15.0.0"  # Installed and managed by bench
+]
 
 [build-system]
 requires = ["flit_core >=3.4,<4"]
 build-backend = "flit_core.buildapi"
 
+# Frappe compatibility requirement
 [tool.bench.frappe-dependencies]
 frappe = ">=15.0.0,<16.0.0"
