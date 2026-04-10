@@ -23,12 +23,13 @@ It allows ERPNext users to automatically create and monitor shipment records fro
 - Frappe Framework **v15+**
 - ERPNext **v15+**
 - Python **3.10+**
+- Bench CLI
 
 ---
 
 ## Installation
 
-### Method 1 — Install from Git Repository
+Install the app using the Bench CLI.
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
@@ -38,3 +39,10 @@ bench get-app https://github.com/YOUR_GITHUB_USERNAME/shipment_tracking.git
 bench --site <your-site-name> install-app shipment_tracking
 
 bench --site <your-site-name> migrate
+```
+
+---
+
+## License
+
+MIT
