@@ -1,35 +1,36 @@
 # Shipment Tracking
 
-Shipment Tracking is a plug-and-play Frappe app that integrates Shipkia shipment synchronization and tracking directly inside ERPNext.
+Shipment Tracking is a plug-and-play Frappe app that integrates **Shipkia shipment synchronization and tracking** directly inside ERPNext.
 
-It allows ERPNext users to automatically create and monitor shipment records from Sales Invoices while maintaining shipment visibility across relevant documents.
+It enables ERPNext users to automatically create, sync, and monitor shipment records from **Sales Invoices** while maintaining shipment visibility across related healthcare and billing documents.
 
 ---
 
 ## Features
 
-- Create external shipment records automatically from **Sales Invoices**
-- Sync shipment data from **Shipkia**
-- Store complete **shipment timeline events**
-- Display shipment summary on **Sales Invoice**
+- Automatically create **shipment records from Sales Invoices**
+- Sync shipment information from **Shipkia API**
+- Store and display full **shipment timeline events**
+- Show **shipment summary directly on Sales Invoice**
 - Mirror shipment details to **Patient Encounter**
-- Add **tracking buttons** directly on Sales Invoice
-- Automatically show shipment fields only for **online encounters**
+- Add **tracking and shipment action buttons** on Sales Invoice
+- Automatically display shipment fields only for **online encounters**
+- Maintain real-time shipment visibility inside ERPNext
 
 ---
 
 ## Requirements
 
-- Frappe Framework **v15+**
-- ERPNext **v15+**
-- Python **3.10+**
-- Bench CLI
+- **Frappe Framework** v15+
+- **ERPNext** v15+
+- **Python** 3.10+
+- **Bench CLI**
 
 ---
 
 ## Installation
 
-Install the app using the Bench CLI.
+Install the app using the **Bench CLI**.
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
@@ -39,6 +40,10 @@ bench get-app https://github.com/YOUR_GITHUB_USERNAME/shipment_tracking.git
 bench --site <your-site-name> install-app shipment_tracking
 
 bench --site <your-site-name> migrate
+
+bench build
+
+bench restart
 ```
 
 ---
