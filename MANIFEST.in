@@ -1,5 +1,6 @@
+include pyproject.toml
 include README.md
-include license.txt
+include LICENSE
 
 recursive-include shipment_tracking *.json
 recursive-include shipment_tracking *.py
@@ -7,11 +8,11 @@ recursive-include shipment_tracking *.js
 recursive-include shipment_tracking *.css
 recursive-include shipment_tracking *.html
 recursive-include shipment_tracking *.md
-recursive-include shipment_tracking *.txt
+recursive-include shipment_tracking *.svg
 recursive-include shipment_tracking *.png
 recursive-include shipment_tracking *.jpg
-recursive-include shipment_tracking *.svg
 recursive-include shipment_tracking *.csv
+recursive-include shipment_tracking *.txt
 
 recursive-exclude * __pycache__
-recursive-exclude * *.py[co]
+recursive-exclude * *.py[cod]
