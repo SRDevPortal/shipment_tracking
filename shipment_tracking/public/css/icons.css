@@ -1,21 +1,22 @@
-.sidebar-item-icon[item-icon="shipment-truck"] {
+.sidebar-item-icon[item-icon="truck"],
+.sidebar-item-icon[item-icon="shipment-truck"],
+.sidebar-item-container[item-name="Shipment Tracking"] .sidebar-item-icon,
+.item-anchor[title="Shipment Tracking"] .sidebar-item-icon {
     width: 24px;
     height: 24px;
+    min-width: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: url("/assets/shipment_tracking/icons/truck.svg") center center / 16px 16px no-repeat;
 }
 
-.sidebar-item-icon[item-icon="shipment-truck"] svg {
-    display: none;
-}
-
-.sidebar-item-icon[item-icon="shipment-truck"]::before {
-    content: "";
-    width: 16px;
-    height: 16px;
-    background-image: url("/assets/shipment_tracking/icons/truck.svg");
-    background-size: 16px 16px;
-    background-repeat: no-repeat;
-    display: inline-block;
+.sidebar-item-icon[item-icon="truck"] svg,
+.sidebar-item-icon[item-icon="shipment-truck"] svg,
+.sidebar-item-container[item-name="Shipment Tracking"] .sidebar-item-icon svg,
+.item-anchor[title="Shipment Tracking"] .sidebar-item-icon svg {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    overflow: hidden;
 }
