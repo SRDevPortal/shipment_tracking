@@ -28,16 +28,14 @@ def setup_all(skip_reload=False):
         apply_patient_encounter()
 
         # --------------------------------------------------
-        # 3. Create Module Def (only if not exists)
+        # 3. Create or refresh Module Def
         # --------------------------------------------------
-        if not frappe.db.exists("Module Def", "Shipment Tracking"):
-            create_module_def()
+        create_module_def()
 
         # --------------------------------------------------
-        # 4. Create Workspace (only if not exists)
+        # 4. Create or refresh Workspace
         # --------------------------------------------------
-        if not frappe.db.exists("Workspace", {"module": "Shipment Tracking"}):
-            create_workspace()
+        create_workspace()
 
         # --------------------------------------------------
         # 5. Clear cache
