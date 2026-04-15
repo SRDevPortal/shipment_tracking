@@ -1,5 +1,7 @@
 import frappe
 
+ICON_NAME = "truck"
+
 
 def create_workspace():
     if frappe.db.exists("Workspace", "Shipment Tracking"):
@@ -7,9 +9,6 @@ def create_workspace():
     else:
         doc = frappe.new_doc("Workspace")
 
-    # -------------------------------
-    # Basic Info
-    # -------------------------------
     doc.label = "Shipment Tracking"
     doc.title = "Shipment Tracking"
     doc.name = "Shipment Tracking"
@@ -17,13 +16,10 @@ def create_workspace():
     doc.app = "shipment_tracking"
     doc.public = 1
     doc.is_standard = 1
-    doc.icon = "shipment-truck"   # ✅ workspace icon
+    doc.icon = ICON_NAME
     doc.category = "Modules"
     doc.hide_custom = 0
 
-    # -------------------------------
-    # Shortcuts (Top Cards)
-    # -------------------------------
     doc.set("shortcuts", [])
 
     doc.append("shortcuts", {
@@ -50,7 +46,6 @@ def create_workspace():
         "color": "Orange"
     })
 
-    # ✅ Single DocType (NO doc_view)
     doc.append("shortcuts", {
         "type": "DocType",
         "link_to": "Shipment Tracking Settings",
@@ -58,16 +53,12 @@ def create_workspace():
         "color": "Green"
     })
 
-    # -------------------------------
-    # Sidebar Links (Left Menu)
-    # -------------------------------
     doc.set("links", [])
 
-    # 🚚 Shipment Section
     doc.append("links", {
         "type": "Card Break",
         "label": "Shipment Management",
-        "icon": "shipment-truck"
+        "icon": ICON_NAME
     })
 
     doc.append("links", {
@@ -84,7 +75,6 @@ def create_workspace():
         "link_to": "Shipment Tracking Shipment Event"
     })
 
-    # 📄 Logs Section
     doc.append("links", {
         "type": "Card Break",
         "label": "Logs",
@@ -98,7 +88,6 @@ def create_workspace():
         "link_to": "Shipment Tracking Sync Log"
     })
 
-    # ⚙️ Configuration Section
     doc.append("links", {
         "type": "Card Break",
         "label": "Configuration",
@@ -112,7 +101,4 @@ def create_workspace():
         "link_to": "Shipment Tracking Settings"
     })
 
-    # -------------------------------
-    # Save
-    # -------------------------------
     doc.save(ignore_permissions=True)
