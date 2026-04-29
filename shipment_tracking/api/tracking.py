@@ -139,6 +139,7 @@ def apply_tracking_response(shipment, body: dict):
     shipment.company = result.get("company") or ""
     shipment.company_id = result.get("company_id") or ""
     shipment.shipkia_status = result.get("status") or latest.get("status") or shipment.shipkia_status
+    shipment.shipkia_stage = result.get("order_stage") or order_details.get("order_stage") or shipment.shipkia_stage
     shipment.normalized_status = normalize_tracking_status(shipment.shipkia_status)
     shipment.shipkia_status_detail = latest.get("detail") or ""
     shipment.shipkia_tracking_id = result.get("tracking_id") or ""
@@ -193,6 +194,8 @@ def mirror_summary_fields(shipment, sales_invoice: str | None, encounter_name: s
     si_values = {
         "si_shipkia_order_id": shipment.shipkia_order_id,
         "si_shipkia_awb_number": shipment.shipkia_awb_number,
+        "si_delivery_partner": shipment.delivery_partner,
+        "si_shipkia_stage": shipment.shipkia_stage,
         "si_shipkia_status": shipment.shipkia_status,
         "si_shipkia_estimated_delivery": shipment.shipkia_estimated_delivery,
         "si_shipkia_delivered_on": shipment.shipkia_delivered_on,
@@ -203,6 +206,8 @@ def mirror_summary_fields(shipment, sales_invoice: str | None, encounter_name: s
     pe_values = {
         "pe_shipkia_order_id": shipment.shipkia_order_id,
         "pe_shipkia_awb_number": shipment.shipkia_awb_number,
+        "pe_delivery_partner": shipment.delivery_partner,
+        "pe_shipkia_stage": shipment.shipkia_stage,
         "pe_shipkia_status": shipment.shipkia_status,
         "pe_shipkia_estimated_delivery": shipment.shipkia_estimated_delivery,
         "pe_shipkia_delivered_on": shipment.shipkia_delivered_on,
@@ -214,7 +219,7 @@ def mirror_summary_fields(shipment, sales_invoice: str | None, encounter_name: s
 
 
 def get_linked_encounter(si):
-    for fieldname in ("si_source_encounter", "patient_encounter", "sr_patient_encounter", "reference_name"):
+    for fieldname in ("source_encounter", "patient_encounter", "sr_patient_encounter", "reference_name"):
         value = getattr(si, fieldname, None)
         if value and frappe.db.exists("Patient Encounter", value):
             return frappe.get_doc("Patient Encounter", value)
