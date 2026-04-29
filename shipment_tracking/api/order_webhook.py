@@ -3,6 +3,35 @@ from __future__ import annotations
 import frappe
 from frappe.utils import get_datetime
 
+from .tracking import mirror_summary_fields
+
+
+def extract_webhook_body(payload):
+    if isinstance(payload, list):
+        payload = payload[0] if payload else {}
+
+    if isinstance(payload, dict) and isinstance(payload.get("body"), dict):
+        return payload.get("body") or {}
+
+    return payload if isinstance(payload, dict) else {}
+
+
+def clean(value):
+    if value is None:
+        return None
+
+    value = str(value).strip()
+    return None if value.lower() in ("", "none", "null") else value
+
+
+def first_clean_value(data, *fieldnames):
+    for fieldname in fieldnames:
+        value = clean(data.get(fieldname))
+        if value:
+            return value
+
+    return None
+
 
 @frappe.whitelist(allow_guest=True)
 def order_status_update():
@@ -31,14 +60,15 @@ def order_status_update():
     # -----------------------------
     # REQUEST DATA
     # -----------------------------
-    data = frappe.request.get_json() or {}
+    payload = frappe.request.get_json() or {}
+    data = extract_webhook_body(payload)
 
-    order_id = data.get("order_id")
+    order_id = clean(data.get("order_id"))
     if not order_id:
         return {
             "success": False,
             "message": "order_id is required",
-            "data": data
+            "data": payload
         }
 
     # -----------------------------
@@ -59,22 +89,35 @@ def order_status_update():
         shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
 
     # -----------------------------
+    # LINK SALES INVOICE WHEN WEBHOOK ARRIVES FIRST
+    # -----------------------------
+    if not shipment.sales_invoice:
+        sales_invoice = frappe.db.get_value(
+            "Sales Invoice",
+            {"si_shipkia_order_id": order_id},
+            "name"
+        )
+        if sales_invoice:
+            shipment.sales_invoice = sales_invoice
+
+    # -----------------------------
     # CLEAN DATA
     # -----------------------------
-    def clean(value):
-        return None if value in ("None", "", None) else value
-
-    awb_number = clean(data.get("awb_number"))
-    status = clean(data.get("order_status"))
-    courier = clean(data.get("courier_partner"))
-    eta = clean(data.get("estimated_delivery_date"))
-    delivered = clean(data.get("delivered_date"))
+    awb_number = first_clean_value(data, "awb_number", "awb")
+    stage = first_clean_value(data, "order_stage", "stage", "shipkia_stage")
+    status = first_clean_value(data, "order_status", "status", "shipkia_status")
+    courier = first_clean_value(data, "courier_partner", "delivery_partner", "courier")
+    eta = first_clean_value(data, "estimated_delivery_date", "estimated_delivery")
+    delivered = first_clean_value(data, "delivered_date", "delivered_on")
 
     # -----------------------------
     # UPDATE SHIPMENT
     # -----------------------------
     if status and shipment.shipkia_status != status:
         shipment.shipkia_status = status
+
+    if stage:
+        shipment.shipkia_stage = stage
 
     if awb_number:
         shipment.shipkia_awb_number = awb_number
@@ -87,6 +130,8 @@ def order_status_update():
 
     if delivered:
         shipment.shipkia_delivered_on = get_datetime(delivered)
+
+    shipment.raw_latest_response = frappe.as_json(payload)
 
     # -----------------------------
     # 🧠 SMART DUPLICATE CHECK
@@ -113,18 +158,11 @@ def order_status_update():
     # -----------------------------
     # MIRROR TO SALES INVOICE
     # -----------------------------
-    if shipment.sales_invoice:
-        frappe.db.set_value(
-            "Sales Invoice",
-            shipment.sales_invoice,
-            {
-                "si_shipkia_status": shipment.shipkia_status,
-                "si_shipkia_awb_number": shipment.shipkia_awb_number,
-                "si_shipkia_estimated_delivery": shipment.shipkia_estimated_delivery,
-                "si_shipkia_delivered_on": shipment.shipkia_delivered_on,
-            },
-            update_modified=False
-        )
+    mirror_summary_fields(
+        shipment,
+        sales_invoice=shipment.sales_invoice,
+        encounter_name=shipment.patient_encounter,
+    )
 
     frappe.db.commit()
 
