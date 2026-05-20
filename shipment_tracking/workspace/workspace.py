@@ -1,24 +1,61 @@
+import json
+
 import frappe
 
-ICON_NAME = "truck"
+
+WORKSPACE_NAME = "Shipment Tracking"
+ICON_NAME = "stock"
 
 
 def create_workspace():
-    if frappe.db.exists("Workspace", "Shipment Tracking"):
-        doc = frappe.get_doc("Workspace", "Shipment Tracking")
+    if frappe.db.exists("Workspace", WORKSPACE_NAME):
+        doc = frappe.get_doc("Workspace", WORKSPACE_NAME)
     else:
         doc = frappe.new_doc("Workspace")
 
-    doc.label = "Shipment Tracking"
-    doc.title = "Shipment Tracking"
-    doc.name = "Shipment Tracking"
+    doc.name = WORKSPACE_NAME
+    doc.label = WORKSPACE_NAME
+    doc.title = WORKSPACE_NAME
     doc.module = "Shipment Tracking"
     doc.app = "shipment_tracking"
     doc.public = 1
     doc.is_standard = 1
     doc.icon = ICON_NAME
     doc.category = "Modules"
+    doc.sequence_id = 998
     doc.hide_custom = 0
+    doc.content = json.dumps(
+        [
+            {
+                "type": "header",
+                "data": {
+                    "text": '<span class="h4"><b>Shipment Tracking</b></span>',
+                    "col": 12,
+                },
+            },
+            {
+                "type": "shortcut",
+                "data": {
+                    "shortcut_name": "Shipments",
+                    "col": 3,
+                },
+            },
+            {
+                "type": "shortcut",
+                "data": {
+                    "shortcut_name": "Sync Logs",
+                    "col": 3,
+                },
+            },
+            {
+                "type": "shortcut",
+                "data": {
+                    "shortcut_name": "Settings",
+                    "col": 3,
+                },
+            },
+        ]
+    )
 
     doc.set("shortcuts", [])
 
