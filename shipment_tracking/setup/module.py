@@ -1,6 +1,6 @@
 import frappe
 
-ICON_NAME = "truck"
+ICON_NAME = "stock"
 
 
 def create_module_def():
