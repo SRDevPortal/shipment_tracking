@@ -72,6 +72,7 @@ def sync_tracking_by_order_id(order_id: str):
         log.status = "Failed"
         log.error_message = str(frappe.get_traceback())
         log.save(ignore_permissions=True)
+        frappe.db.commit()
         raise
 
     log.http_status = response.status_code
@@ -84,13 +85,22 @@ def sync_tracking_by_order_id(order_id: str):
             else str(response.text)
         )
         log.save(ignore_permissions=True)
+        frappe.db.commit()
         frappe.throw("Shipkia tracking sync failed. Check Shipment Tracking Sync Log.")
 
     if not tracking_result(body):
         log.status = "Failed"
-        log.error_message = "Tracking response did not contain result payload."
+        if isinstance(body, dict) and body.get("raw_text"):
+            log.error_message = (
+                "Tracking URL returned non-JSON/HTML content. "
+                "Please configure Shipment Tracking Settings > Tracking URL to the Shipkia API endpoint, "
+                "not the public tracking web page."
+            )
+        else:
+            log.error_message = "Tracking response did not contain result payload."
         log.save(ignore_permissions=True)
-        frappe.throw("Shipkia tracking response was missing result data. Check Sync Log.")
+        frappe.db.commit()
+        frappe.throw(log.error_message)
 
     apply_tracking_response(shipment, body)
     log.status = "Success"
