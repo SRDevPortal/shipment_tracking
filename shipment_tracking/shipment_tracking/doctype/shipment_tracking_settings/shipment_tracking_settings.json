@@ -11,8 +11,8 @@
   "order_channel",
   "api_key",
   "api_secret",
-  "webhook_secret",
   "enable_webhook_security",
+  "webhook_secret",
   "default_parcel_length",
   "default_parcel_breadth",
   "default_parcel_height",
@@ -66,15 +66,16 @@
    "fieldname": "webhook_secret",
    "fieldtype": "Password",
    "label": "Webhook Secret",
+   "depends_on": "eval:doc.enable_webhook_security",
    "description": "Secret key for validating incoming webhooks",
-   "insert_after": "api_secret"
+   "insert_after": "enable_webhook_security"
   },
   {
    "fieldname": "enable_webhook_security",
    "fieldtype": "Check",
    "label": "Enable Webhook Security",
    "default": "1",
-   "insert_after": "webhook_secret"
+   "insert_after": "api_secret"
   },
   {
    "fieldname": "default_parcel_length",
