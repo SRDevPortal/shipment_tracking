@@ -103,11 +103,29 @@ def apply():
 def cleanup_duplicate_fields():
     migrate_custom_field_data(DT, "si_source_encounter", "source_encounter")
     migrate_custom_field_data(DT, "si_shipkia_order_stage", "si_shipkia_stage")
+    migrate_custom_field_data(DT, "shipkia_order_id", "si_shipkia_order_id")
+    migrate_custom_field_data(DT, "shipkia_awb_number", "si_shipkia_awb_number")
+    migrate_custom_field_data(DT, "shipkia_status", "si_shipkia_status")
+    migrate_custom_field_data(DT, "shipkia_estimated_delivery", "si_shipkia_estimated_delivery")
+    migrate_custom_field_data(DT, "shipkia_delivered_on", "si_shipkia_delivered_on")
+    migrate_custom_field_data(DT, "shipkia_shipment", "si_shipkia_shipment")
 
     obsolete_fields = []
     if frappe.db.has_column(DT, "source_encounter"):
         obsolete_fields.append("si_source_encounter")
     if frappe.db.has_column(DT, "si_shipkia_stage"):
         obsolete_fields.append("si_shipkia_order_stage")
+
+    obsolete_fields.extend(
+        [
+            "shipment_tracking_section",
+            "shipkia_order_id",
+            "shipkia_awb_number",
+            "shipkia_status",
+            "shipkia_estimated_delivery",
+            "shipkia_delivered_on",
+            "shipkia_shipment",
+        ]
+    )
 
     delete_custom_fields(DT, obsolete_fields)
