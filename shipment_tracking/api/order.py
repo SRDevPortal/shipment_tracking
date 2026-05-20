@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 import frappe
 import requests
@@ -7,6 +8,9 @@ from frappe.utils import cstr
 
 from .utils import first_order_id, get_settings, make_auth_headers, safe_json, safe_response_json
 from .tracking import create_or_update_shipment_from_order_response, get_linked_encounter
+
+
+SHIPKIA_SAFE_TEXT_RE = re.compile(r"[^A-Za-z0-9\s,./\-#()']+")
 
 
 @frappe.whitelist()
@@ -132,7 +136,7 @@ def build_payload_from_sales_invoice(si, settings) -> dict[str, Any]:
         "delivery_full_name": si.customer_name,
         "delivery_phone_number": normalized_mobile,
         "delivery_email": si.contact_email or "",
-        "delivery_address": join_address(shipping),
+        "delivery_address": sanitize_shipkia_address(join_address(shipping)),
         "delivery_city": shipping.city,
         "delivery_state": shipping.state,
         "delivery_pincode": shipping.pincode,
@@ -145,7 +149,7 @@ def build_payload_from_sales_invoice(si, settings) -> dict[str, Any]:
         payload.update({
             "billing_full_name": si.customer_name,
             "billing_phone_number": normalized_mobile,
-            "billing_address": join_address(billing),
+            "billing_address": sanitize_shipkia_address(join_address(billing)),
             "billing_city": billing.city,
             "billing_state": billing.state,
             "billing_pincode": billing.pincode,
@@ -244,6 +248,13 @@ def get_billing_address(si):
 
 def join_address(address_doc) -> str:
     return ", ".join(filter(None, [cstr(address_doc.address_line1), cstr(address_doc.address_line2)]))
+
+
+def sanitize_shipkia_address(value: str | None) -> str:
+    text = cstr(value or "")
+    text = text.replace(":", " ")
+    text = SHIPKIA_SAFE_TEXT_RE.sub(" ", text)
+    return " ".join(text.split())
 
 
 def get_tax_rate(si) -> float:
