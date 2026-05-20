@@ -53,7 +53,23 @@ def first_order_id(body):
 
 
 def tracking_result(response_json: dict[str, Any]) -> dict[str, Any]:
-    return response_json.get("result") or {}
+    if not isinstance(response_json, dict):
+        return {}
+
+    result = response_json.get("result")
+    if isinstance(result, dict):
+        return result
+
+    message = response_json.get("message")
+    if isinstance(message, dict):
+        result = message.get("result")
+        if isinstance(result, dict):
+            return result
+
+        if any(key in message for key in ("order_details", "shipment_timeline", "status", "order_stage")):
+            return message
+
+    return {}
 
 
 def latest_timeline_entry(result: dict[str, Any]) -> dict[str, Any]:
