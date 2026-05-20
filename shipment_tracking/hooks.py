@@ -8,8 +8,6 @@ app_license = "MIT"
 after_install = "shipment_tracking.install.after_install"
 after_migrate = "shipment_tracking.install.after_migrate"
 
-app_include_css = "/assets/shipment_tracking/css/icons.css"
-
 doctype_js = {
     "Sales Invoice": [
         "public/js/sales_invoice_shipment_tracking.js",
