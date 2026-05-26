@@ -3,8 +3,56 @@ import frappe
 MODULE_NAME = "Shipment Tracking"
 
 
+def ensure_valid_title_field(dt: str, fallback_fieldname: str | None = None) -> None:
+    meta = frappe.get_meta(dt)
+    title_field = (meta.get("title_field") or "").strip()
+
+    if not title_field:
+        return
+
+    valid_fieldnames = {df.fieldname for df in meta.fields if df.fieldname}
+    if title_field in valid_fieldnames:
+        return
+
+    scrubbed_title_field = frappe.scrub(title_field)
+    if scrubbed_title_field in valid_fieldnames:
+        repaired_title_field = scrubbed_title_field
+    elif fallback_fieldname and fallback_fieldname in valid_fieldnames:
+        repaired_title_field = fallback_fieldname
+    else:
+        repaired_title_field = ""
+
+    filters = {
+        "doc_type": dt,
+        "doctype_or_field": "DocType",
+        "property": "title_field",
+    }
+    frappe.db.delete("Property Setter", filters)
+
+    standard_title_field = (frappe.db.get_value("DocType", dt, "title_field") or "").strip()
+    if repaired_title_field and repaired_title_field != standard_title_field:
+        from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+
+        make_property_setter(
+            dt,
+            None,
+            "title_field",
+            repaired_title_field,
+            "Data",
+            for_doctype=True,
+            validate_fields_for_doctype=False,
+        )
+
+    frappe.clear_cache(doctype=dt)
+    frappe.logger("shipment_tracking").info(
+        f"Repaired invalid title field for {dt}: {title_field} -> {repaired_title_field or standard_title_field or 'blank'}"
+    )
+
+
 def create_cf_with_module(fieldmap: dict[str, list[dict]]):
     for dt, fields in fieldmap.items():
+        ensure_valid_title_field(dt, fallback_fieldname="title")
+
         for field in fields:
             fieldname = field.get("fieldname")
 
