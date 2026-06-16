@@ -1,112 +1,56 @@
 (function () {
-frappe.ui.form.on("Sales Invoice", {
+frappe.ui.form.on("Patient Encounter", {
     refresh(frm) {
-        if (frm.doc.docstatus !== 1) {
-            return;
-        }
-
-        frm.remove_custom_button("Send to Shipkia2", "Actions");
-        frm.remove_custom_button("Resend to Shipkia2", "Actions");
-        frm.remove_custom_button("Refresh Shipment Status", "Actions");
-        frm.remove_custom_button("Open Shipment", "Actions");
-        frm.remove_custom_button("Request Reattempt", "Actions");
-        frm.remove_custom_button("Request Hub Address", "Actions");
-        frm.remove_custom_button("Refresh Support Ticket", "Actions");
-        frm.remove_custom_button("Open Support Ticket", "Actions");
-
-        const shipkia_order_id = frm.doc.si_shipkia_order_id;
-        const shipkia_shipment = frm.doc.si_shipkia_shipment;
-        const can_open_shipment = frappe.session.user === "Administrator"
-            || frappe.user_roles.includes("System Manager");
-
-        if (!shipkia_order_id) {
-            frm.add_custom_button(__("Create Shipkia Order"), () => {
-                frappe.confirm("Create Shipkia order for this Sales Invoice?", () => {
-                    frappe.call({
-                        method: "shipment_tracking.api.order.create_order_for_sales_invoice",
-                        args: { invoice_name: frm.doc.name },
-                        freeze: true,
-                        freeze_message: __("Creating Shipkia order..."),
-                        callback(r) {
-                            if (!r.exc) {
-                                frappe.msgprint(r.message.message || "Shipkia order created.");
-                                frm.reload_doc();
-                            }
-                        }
-                    });
-                });
-            }, __("Actions"));
-        } else {
-            frm.add_custom_button(__("Recreate Shipkia Order"), () => {
-                frappe.confirm("This Sales Invoice already has a Shipkia order. Recreate it anyway?", () => {
-                    frappe.call({
-                        method: "shipment_tracking.api.order.create_order_for_sales_invoice",
-                        args: { invoice_name: frm.doc.name, force: 1 },
-                        freeze: true,
-                        freeze_message: __("Recreating Shipkia order..."),
-                        callback(r) {
-                            if (!r.exc) {
-                                frappe.msgprint(r.message.message || "Shipkia order recreated.");
-                                frm.reload_doc();
-                            }
-                        }
-                    });
-                });
-            }, __("Actions"));
-            if (can_open_shipment) {
-                frm.add_custom_button(__("Refresh Shipment Status"), () => {
-                    frappe.call({
-                        method: "shipment_tracking.api.tracking.sync_tracking_for_invoice",
-                        args: { invoice_name: frm.doc.name },
-                        freeze: true,
-                        freeze_message: __("Refreshing shipment status..."),
-                        callback(r) {
-                            if (!r.exc) {
-                                frappe.msgprint(r.message.message || "Shipment updated.");
-                                frm.reload_doc();
-                            }
-                        }
-                    });
-                }, __("Actions"));
-            }
-        }
-
-        setTimeout(() => render_sales_invoice_support_panel(frm), 300);
-
-        if (shipkia_shipment && can_open_shipment) {
-            frm.add_custom_button(__("Open Shipment"), () => {
-                frappe.set_route("Form", "Shipment Tracking Shipment", shipkia_shipment);
-            }, __("Actions"));
-        }
+        setTimeout(() => render_patient_encounter_support_panel(frm), 300);
     }
 });
 
-function render_sales_invoice_support_panel(frm) {
-    if (!frm.doc.si_shipkia_order_id || !frm.fields_dict.si_support_actions_html) {
+function render_patient_encounter_support_panel(frm) {
+    if (!is_shipment_enabled(frm) || !frm.fields_dict.pe_support_actions_html) {
         return;
     }
 
-    const wrapper = frm.fields_dict.si_support_actions_html.$wrapper;
+    frm.remove_custom_button("Request Reattempt", "Actions");
+    frm.remove_custom_button("Request Hub Address", "Actions");
+    frm.remove_custom_button("Refresh Support Ticket", "Actions");
+    frm.remove_custom_button("Open Support Ticket", "Actions");
+    frm.remove_custom_button("Request Reattempt", "Shipkia Support");
+    frm.remove_custom_button("Request Hub Address", "Shipkia Support");
+    frm.remove_custom_button("Refresh Support Ticket", "Shipkia Support");
+    frm.remove_custom_button("Open Support Ticket", "Shipkia Support");
+
+    const wrapper = frm.fields_dict.pe_support_actions_html.$wrapper;
     wrapper.html(`<div class="text-muted small">${__("Loading support actions...")}</div>`);
 
     frappe.call({
-        method: "shipment_tracking.api.support.get_support_state_for_invoice",
-        args: { invoice_name: frm.doc.name },
+        method: "shipment_tracking.api.support.get_support_state_for_encounter",
+        args: { encounter_name: frm.doc.name },
         callback(r) {
             if (!r.exc) {
                 render_support_panel({
                     frm,
                     wrapper,
                     state: r.message || {},
-                    sourceArg: "invoice_name",
+                    sourceArg: "encounter_name",
                     sourceName: frm.doc.name,
-                    reattemptMethod: "shipment_tracking.api.support.request_reattempt_for_invoice",
-                    hubMethod: "shipment_tracking.api.support.request_hub_address_for_invoice",
-                    refreshTicket: frm.doc.si_latest_support_ticket || (r.message || {}).latest_ticket
+                    reattemptMethod: "shipment_tracking.api.support.request_reattempt_for_encounter",
+                    hubMethod: "shipment_tracking.api.support.request_hub_address_for_encounter",
+                    refreshTicket: frm.doc.pe_latest_support_ticket || (r.message || {}).latest_ticket
                 });
             }
         }
     });
+}
+
+function is_shipment_enabled(frm) {
+    return Boolean(
+        frm.doc.pe_shipkia_order_id
+        || frm.doc.pe_shipkia_shipment
+        || frm.doc.has_shipment_tracking
+        || frm.doc.pe_has_shipment_tracking
+        || frm.doc.shipment_tracking
+        || frm.doc.sr_encounter_place === "Online"
+    );
 }
 
 function render_support_panel(config) {
@@ -116,7 +60,7 @@ function render_support_panel(config) {
     const disabledText = state.hub_address_disabled_message || "";
     const responseRows = render_response_rows(
         state.responses,
-        state.latest_response || frm.doc.si_latest_support_response || ""
+        state.latest_response || frm.doc.pe_latest_support_response || ""
     );
 
     wrapper.html(`
@@ -132,9 +76,9 @@ function render_support_panel(config) {
             ${hubDisabled ? `<div class="text-muted small">${frappe.utils.escape_html(disabledText)}</div>` : ""}
             <div class="shipment-support-chat" style="border:1px solid var(--border-color); border-radius:6px; padding:10px; background:var(--fg-color);">
                 <div class="text-muted small">${__("Shipkia Response")}</div>
-                <div><b>${frappe.utils.escape_html(state.latest_ticket_id || frm.doc.si_latest_support_ticket_id || "")}</b></div>
-                <div class="small">${frappe.utils.escape_html(state.latest_issue_type || frm.doc.si_latest_support_issue_type || "")}</div>
-                <div class="small">${frappe.utils.escape_html(state.latest_stage || frm.doc.si_latest_support_stage || "")}</div>
+                <div><b>${frappe.utils.escape_html(state.latest_ticket_id || frm.doc.pe_latest_support_ticket_id || "")}</b></div>
+                <div class="small">${frappe.utils.escape_html(state.latest_issue_type || frm.doc.pe_latest_support_issue_type || "")}</div>
+                <div class="small">${frappe.utils.escape_html(state.latest_stage || frm.doc.pe_latest_support_stage || "")}</div>
                 <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">${responseRows}</div>
             </div>
         </div>

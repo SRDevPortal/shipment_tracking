@@ -1,0 +1,47 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "ticket_id",
+  "issue_type",
+  "stage",
+  "shipment",
+  "sales_invoice",
+  "patient_encounter",
+  "shipkia_order_id",
+  "awb_number",
+  "courier_partner",
+  "message",
+  "latest_response",
+  "raw_latest_response"
+ ],
+ "fields": [
+  {"fieldname": "ticket_id", "fieldtype": "Data", "label": "Ticket ID", "read_only": 1, "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "issue_type", "fieldtype": "Data", "label": "Issue Type", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "stage", "fieldtype": "Data", "label": "Stage", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "shipment", "fieldtype": "Link", "label": "Shipment", "options": "Shipment Tracking Shipment", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "sales_invoice", "fieldtype": "Link", "label": "Sales Invoice", "options": "Sales Invoice", "read_only": 1},
+  {"fieldname": "patient_encounter", "fieldtype": "Link", "label": "Patient Encounter", "options": "Patient Encounter", "read_only": 1},
+  {"fieldname": "shipkia_order_id", "fieldtype": "Data", "label": "Shipkia Order ID", "read_only": 1, "in_standard_filter": 1},
+  {"fieldname": "awb_number", "fieldtype": "Data", "label": "AWB Number", "read_only": 1},
+  {"fieldname": "courier_partner", "fieldtype": "Data", "label": "Courier Partner", "read_only": 1},
+  {"fieldname": "message", "fieldtype": "Small Text", "label": "Message", "read_only": 1},
+  {"fieldname": "latest_response", "fieldtype": "Small Text", "label": "Latest Response", "read_only": 1},
+  {"fieldname": "raw_latest_response", "fieldtype": "Long Text", "label": "Raw Latest Response", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "module": "Shipment Tracking",
+ "name": "Shipment Tracking Support Ticket",
+ "permissions": [
+  {"create": 1, "read": 1, "write": 1, "delete": 1, "role": "System Manager"},
+  {"create": 1, "read": 1, "write": 1, "if_owner": 1, "role": "Sales User"},
+  {"create": 1, "read": 1, "write": 1, "if_owner": 1, "role": "Healthcare User"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

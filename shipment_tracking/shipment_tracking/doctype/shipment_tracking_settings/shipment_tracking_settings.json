@@ -7,6 +7,10 @@
   "enabled",
   "create_order_url",
   "tracking_url",
+  "support_create_url",
+  "support_update_url",
+  "support_get_url",
+  "support_list_url",
   "pickup_address",
   "order_channel",
   "api_key",
@@ -36,6 +40,30 @@
    "fieldtype": "Data",
    "label": "Tracking URL",
    "reqd": 1
+  },
+  {
+   "fieldname": "support_create_url",
+   "fieldtype": "Data",
+   "label": "Support Create URL",
+   "description": "Shipkia create support ticket API endpoint"
+  },
+  {
+   "fieldname": "support_update_url",
+   "fieldtype": "Data",
+   "label": "Support Update URL",
+   "description": "Shipkia update support ticket API endpoint"
+  },
+  {
+   "fieldname": "support_get_url",
+   "fieldtype": "Data",
+   "label": "Support Get URL",
+   "description": "Shipkia get support ticket API endpoint"
+  },
+  {
+   "fieldname": "support_list_url",
+   "fieldtype": "Data",
+   "label": "Support List URL",
+   "description": "Shipkia list support tickets API endpoint"
   },
   {
    "fieldname": "pickup_address",

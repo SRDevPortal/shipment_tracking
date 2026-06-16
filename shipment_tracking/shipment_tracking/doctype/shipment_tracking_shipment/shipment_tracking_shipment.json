@@ -24,6 +24,13 @@
   "shipkia_delivered_on",
   "last_synced_on",
   "raw_latest_response",
+  "support_ticket_section",
+  "latest_support_ticket",
+  "latest_support_ticket_id",
+  "latest_support_issue_type",
+  "latest_support_stage",
+  "latest_support_response",
+  "latest_support_requested_on",
   "events"
  ],
  "fields": [
@@ -47,6 +54,13 @@
   {"fieldname": "shipkia_delivered_on", "fieldtype": "Datetime", "label": "Delivered On"},
   {"fieldname": "last_synced_on", "fieldtype": "Datetime", "label": "Last Synced On"},
   {"fieldname": "raw_latest_response", "fieldtype": "Long Text", "label": "Raw Latest Response"},
+  {"fieldname": "support_ticket_section", "fieldtype": "Section Break", "label": "Support Ticket"},
+  {"fieldname": "latest_support_ticket", "fieldtype": "Link", "label": "Latest Support Ticket", "options": "Shipment Tracking Support Ticket", "read_only": 1},
+  {"fieldname": "latest_support_ticket_id", "fieldtype": "Data", "label": "Latest Support Ticket ID", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "latest_support_issue_type", "fieldtype": "Data", "label": "Latest Support Issue Type", "read_only": 1},
+  {"fieldname": "latest_support_stage", "fieldtype": "Data", "label": "Latest Support Stage", "read_only": 1},
+  {"fieldname": "latest_support_response", "fieldtype": "Small Text", "label": "Latest Support Response", "read_only": 1},
+  {"fieldname": "latest_support_requested_on", "fieldtype": "Datetime", "label": "Latest Support Requested On", "read_only": 1},
   {"fieldname": "events", "fieldtype": "Table", "label": "Events", "options": "Shipment Tracking Shipment Event"}
  ],
  "index_web_pages_for_search": 1,
