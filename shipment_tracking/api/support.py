@@ -149,7 +149,6 @@ def support_ticket_update(payload: Any | None = None):
 
     was_new = not ticket
     ticket = upsert_ticket_from_support_update(data, raw_payload, ticket=ticket, webhook_hash=webhook_hash)
-    add_support_response_comment(ticket, ticket, "updated")
     log_support_ticket_update(ticket, raw_payload, data, was_new)
     frappe.db.commit()
 
@@ -793,14 +792,19 @@ def mirror_support_fields(ticket):
 
 
 def add_support_response_comment(reference, ticket, action: str):
-    message = (
-        f"Shipkia support ticket {action}: {ticket.ticket_id or ticket.name}<br>"
-        f"Issue Type: {escape(ticket.issue_type or '')}<br>"
-        f"Stage: {escape(ticket.stage or '')}<br>"
-        f"AWB: {escape(ticket.awb_number or '')}<br>"
-        f"Courier: {escape(ticket.courier_partner or '')}<br>"
-        f"Response: {escape(ticket.latest_response or ticket.message or '')}"
-    )
+    lines = [
+        f"Shipkia support ticket {action}: {escape(ticket.ticket_id or ticket.name)}",
+        f"Issue Type: {escape(ticket.issue_type or '')}",
+        f"Stage: {escape(ticket.stage or '')}",
+        f"AWB: {escape(ticket.awb_number or '')}",
+        f"Courier: {escape(ticket.courier_partner or '')}",
+        "Latest response updated on the support ticket.",
+    ]
+    linking_status = cstr(getattr(ticket, "linking_status", "")).strip()
+    if action == "updated" and linking_status:
+        lines.append(f"Linking Status: {escape(linking_status)}")
+
+    message = "<br>".join(lines)
 
     targets = []
     if reference.doctype in ("Sales Invoice", "Patient Encounter", "Shipment Tracking Shipment"):
