@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import time
 from html import escape
 from typing import Any
@@ -125,6 +126,38 @@ def refresh_support_ticket(ticket_name: str):
     log.save(ignore_permissions=True)
 
     return support_return_payload(ticket, body, "Support ticket refreshed.")
+
+
+@frappe.whitelist(allow_guest=True)
+def support_ticket_update(payload: Any | None = None):
+    raw_payload = payload if payload is not None else (frappe.request.get_json() or {})
+    data = extract_support_payload(raw_payload)
+    if not data:
+        frappe.throw("Support ticket update payload is empty.")
+
+    webhook_hash = support_update_hash(data)
+    ticket = find_support_ticket_for_update(data)
+    if ticket and getattr(ticket, "last_webhook_hash", "") == webhook_hash:
+        update_webhook_state(ticket, data, webhook_hash, bool(ticket.shipment or ticket.sales_invoice or ticket.patient_encounter), duplicate=True)
+        ticket.save(ignore_permissions=True)
+        frappe.db.commit()
+        return {
+            **support_webhook_return_payload(ticket, "Duplicate support ticket update ignored."),
+            "duplicate": True,
+            "linked": bool(ticket.shipment or ticket.sales_invoice or ticket.patient_encounter),
+        }
+
+    was_new = not ticket
+    ticket = upsert_ticket_from_support_update(data, raw_payload, ticket=ticket, webhook_hash=webhook_hash)
+    add_support_response_comment(ticket, ticket, "updated")
+    log_support_ticket_update(ticket, raw_payload, data, was_new)
+    frappe.db.commit()
+
+    return {
+        **support_webhook_return_payload(ticket, "Support ticket updated."),
+        "duplicate": False,
+        "linked": bool(ticket.shipment or ticket.sales_invoice or ticket.patient_encounter),
+    }
 
 
 def create_support_ticket(reference, issue_type: str, message: str):
@@ -372,12 +405,41 @@ def validate_encounter_shipment_enabled(encounter):
 
 
 def support_data(body: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(body, dict):
+        return extract_support_payload(body)
+
+    direct_keys = {
+        "comments",
+        "ticket_id",
+        "partner_ticket_id",
+        "stage",
+        "issue_type",
+        "record_id",
+        "awb",
+    }
+    if any(key in body for key in direct_keys):
+        return body
+
+    extracted = extract_support_payload(body)
+    if extracted is not body and extracted:
+        return extracted
+
     message = body.get("message") if isinstance(body, dict) else {}
     if isinstance(message, dict):
         data = message.get("data")
         if isinstance(data, dict):
             return data
     return {}
+
+
+def extract_support_payload(payload: Any) -> dict[str, Any]:
+    if isinstance(payload, list):
+        payload = payload[0] if payload else {}
+
+    if isinstance(payload, dict) and isinstance(payload.get("body"), dict):
+        return payload.get("body") or {}
+
+    return payload if isinstance(payload, dict) else {}
 
 
 def support_error(body: dict[str, Any]) -> str:
@@ -400,6 +462,8 @@ def upsert_local_ticket(reference, issue_type: str, message: str, body: dict[str
         ticket.owner = frappe.session.user
 
     ticket.ticket_id = ticket_id
+    if ticket.meta.has_field("partner_ticket_id"):
+        ticket.partner_ticket_id = data.get("partner_ticket_id") or ticket.partner_ticket_id
     ticket.issue_type = data.get("issue_type") or issue_type
     ticket.stage = data.get("stage") or ""
     ticket.shipment = reference.name if reference.doctype == "Shipment Tracking Shipment" else None
@@ -419,6 +483,193 @@ def upsert_local_ticket(reference, issue_type: str, message: str, body: dict[str
 
     mirror_support_fields(ticket)
     return ticket
+
+
+def upsert_ticket_from_support_update(data: dict[str, Any], raw_payload: Any, ticket=None, webhook_hash: str | None = None):
+    ticket = ticket or find_support_ticket_for_update(data)
+    if not ticket:
+        ticket = frappe.get_doc({"doctype": "Shipment Tracking Support Ticket"})
+
+    reference = get_reference_for_support_update(data)
+    ticket.ticket_id = cstr(data.get("ticket_id") or data.get("id") or ticket.ticket_id).strip()
+    if ticket.meta.has_field("partner_ticket_id"):
+        ticket.partner_ticket_id = cstr(data.get("partner_ticket_id") or ticket.partner_ticket_id).strip()
+    ticket.issue_type = cstr(data.get("issue_type") or ticket.issue_type).strip()
+    ticket.stage = cstr(data.get("stage") or ticket.stage).strip()
+    ticket.shipkia_order_id = cstr(data.get("record_id") or ticket.shipkia_order_id or get_reference_order_id(reference)).strip()
+    ticket.awb_number = cstr(data.get("awb") or data.get("awb_number") or ticket.awb_number).strip()
+    ticket.courier_partner = cstr(data.get("courier_partner") or ticket.courier_partner).strip()
+    ticket.message = cstr(data.get("description") or data.get("message") or ticket.message).strip()
+
+    if reference:
+        ticket.shipment = reference.name if reference.doctype == "Shipment Tracking Shipment" else ticket.shipment
+        ticket.sales_invoice = get_reference_sales_invoice(reference) or ticket.sales_invoice
+        ticket.patient_encounter = get_reference_patient_encounter(reference) or ticket.patient_encounter
+        if ticket.is_new() and getattr(reference, "owner", None):
+            ticket.owner = reference.owner
+    elif ticket.is_new():
+        ticket.owner = "Administrator"
+
+    fill_missing_support_links(ticket)
+    linked = bool(ticket.shipment or ticket.sales_invoice or ticket.patient_encounter)
+    update_webhook_state(ticket, data, webhook_hash or support_update_hash(data), linked)
+    ticket.latest_response = latest_response_text(data)
+    ticket.raw_latest_response = safe_json(raw_payload)
+
+    if ticket.is_new():
+        ticket.insert(ignore_permissions=True)
+    else:
+        ticket.save(ignore_permissions=True)
+
+    mirror_support_fields(ticket)
+    return ticket
+
+
+def update_webhook_state(ticket, data: dict[str, Any], webhook_hash: str, linked: bool, duplicate: bool = False):
+    if ticket.meta.has_field("last_webhook_received_on"):
+        ticket.last_webhook_received_on = now_datetime()
+    if ticket.meta.has_field("webhook_update_count"):
+        ticket.webhook_update_count = (ticket.webhook_update_count or 0) + 1
+    if ticket.meta.has_field("last_webhook_comment_on"):
+        comment_on = latest_comment_created_on(data)
+        ticket.last_webhook_comment_on = parse_webhook_datetime(comment_on) or ticket.last_webhook_comment_on
+    if ticket.meta.has_field("last_webhook_hash") and not duplicate:
+        ticket.last_webhook_hash = webhook_hash
+    if ticket.meta.has_field("is_unlinked"):
+        ticket.is_unlinked = 0 if linked else 1
+    if ticket.meta.has_field("linking_status"):
+        if linked:
+            ticket.linking_status = "Linked to shipment, sales invoice, or patient encounter."
+        else:
+            ticket.linking_status = (
+                "No matching Shipment Tracking Shipment, Sales Invoice, or Patient Encounter found "
+                f"for Order ID {cstr(data.get('record_id')).strip() or '-'} / AWB {cstr(data.get('awb') or data.get('awb_number')).strip() or '-'}."
+            )
+
+
+def latest_comment_created_on(data: dict[str, Any]) -> str:
+    comments = data.get("comments") or []
+    if comments and isinstance(comments, list):
+        comment = comments[-1] or {}
+        return cstr(comment.get("created_on") or comment.get("creation") or "").strip()
+    return ""
+
+
+def parse_webhook_datetime(value: str):
+    value = cstr(value).strip()
+    if not value:
+        return None
+
+    parsed = get_datetime(value)
+    if getattr(parsed, "tzinfo", None):
+        parsed = parsed.replace(tzinfo=None)
+    return parsed
+
+
+def support_update_hash(data: dict[str, Any]) -> str:
+    latest_comment = {}
+    comments = data.get("comments") or []
+    if comments and isinstance(comments, list) and isinstance(comments[-1], dict):
+        latest_comment = comments[-1]
+
+    key = {
+        "ticket_id": cstr(data.get("ticket_id") or data.get("id")).strip(),
+        "partner_ticket_id": cstr(data.get("partner_ticket_id")).strip(),
+        "stage": cstr(data.get("stage")).strip(),
+        "awb": cstr(data.get("awb") or data.get("awb_number")).strip(),
+        "record_id": cstr(data.get("record_id")).strip(),
+        "latest_comment": cstr(latest_comment.get("comment") or latest_comment.get("message")).strip(),
+        "latest_comment_created_on": cstr(latest_comment.get("created_on") or latest_comment.get("creation")).strip(),
+    }
+    return hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()
+
+
+def find_support_ticket_for_update(data: dict[str, Any]):
+    for fieldname, value in (
+        ("ticket_id", data.get("ticket_id") or data.get("id")),
+        ("partner_ticket_id", data.get("partner_ticket_id")),
+    ):
+        value = cstr(value).strip()
+        if not value:
+            continue
+        if fieldname == "partner_ticket_id" and not frappe.get_meta("Shipment Tracking Support Ticket").has_field(fieldname):
+            continue
+        name = frappe.db.get_value("Shipment Tracking Support Ticket", {fieldname: value}, "name")
+        if name:
+            return frappe.get_doc("Shipment Tracking Support Ticket", name)
+
+    order_id = cstr(data.get("record_id")).strip()
+    awb = cstr(data.get("awb") or data.get("awb_number")).strip()
+    for filters in (
+        {"shipkia_order_id": order_id} if order_id else None,
+        {"awb_number": awb} if awb else None,
+    ):
+        if not filters:
+            continue
+        name = frappe.db.get_value(
+            "Shipment Tracking Support Ticket",
+            filters,
+            "name",
+            order_by="modified desc",
+        )
+        if name:
+            return frappe.get_doc("Shipment Tracking Support Ticket", name)
+
+    return None
+
+
+def get_reference_for_support_update(data: dict[str, Any]):
+    order_id = cstr(data.get("record_id")).strip()
+    awb = cstr(data.get("awb") or data.get("awb_number")).strip()
+
+    shipment_name = None
+    if order_id:
+        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"shipkia_order_id": order_id}, "name")
+    if not shipment_name and awb:
+        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"shipkia_awb_number": awb}, "name")
+    if shipment_name:
+        return frappe.get_doc("Shipment Tracking Shipment", shipment_name)
+
+    invoice_name = None
+    if order_id:
+        invoice_name = frappe.db.get_value("Sales Invoice", {"si_shipkia_order_id": order_id}, "name")
+    if not invoice_name and awb:
+        invoice_name = frappe.db.get_value("Sales Invoice", {"si_shipkia_awb_number": awb}, "name")
+    if invoice_name:
+        return frappe.get_doc("Sales Invoice", invoice_name)
+
+    encounter_name = None
+    if order_id:
+        encounter_name = frappe.db.get_value("Patient Encounter", {"pe_shipkia_order_id": order_id}, "name")
+    if not encounter_name and awb:
+        encounter_name = frappe.db.get_value("Patient Encounter", {"pe_shipkia_awb_number": awb}, "name")
+    if encounter_name:
+        return frappe.get_doc("Patient Encounter", encounter_name)
+
+    return None
+
+
+def fill_missing_support_links(ticket):
+    if ticket.shipment:
+        shipment = frappe.get_doc("Shipment Tracking Shipment", ticket.shipment)
+        ticket.sales_invoice = ticket.sales_invoice or shipment.sales_invoice
+        ticket.patient_encounter = ticket.patient_encounter or shipment.patient_encounter
+        return
+
+    if ticket.sales_invoice and frappe.db.exists("Sales Invoice", ticket.sales_invoice):
+        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"sales_invoice": ticket.sales_invoice}, "name")
+        if shipment_name:
+            ticket.shipment = shipment_name
+            shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
+            ticket.patient_encounter = ticket.patient_encounter or shipment.patient_encounter
+            return
+
+    if ticket.patient_encounter and frappe.db.exists("Patient Encounter", ticket.patient_encounter):
+        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"patient_encounter": ticket.patient_encounter}, "name")
+        if shipment_name:
+            ticket.shipment = shipment_name
+            shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
+            ticket.sales_invoice = ticket.sales_invoice or shipment.sales_invoice
 
 
 def get_reference_sales_invoice(reference) -> str | None:
@@ -454,9 +705,9 @@ def apply_support_response(ticket, body: dict[str, Any]):
 def latest_response_text(data: dict[str, Any]) -> str:
     comments = data.get("comments") or []
     if comments and isinstance(comments, list):
-        comment = comments[0] or {}
+        comment = comments[-1] or {}
         return cstr(comment.get("comment") or comment.get("message") or "")
-    return cstr(data.get("message") or "")
+    return cstr(data.get("message") or data.get("description") or "")
 
 
 def support_response_entries(ticket) -> list[dict[str, Any]]:
@@ -485,10 +736,11 @@ def support_response_entries(ticket) -> list[dict[str, Any]]:
                     "type": row.get("type") or "",
                     "by": row.get("comment_by") or "",
                     "created_on": row.get("created_on") or row.get("creation") or "",
+                    "attachment": row.get("attachment"),
                 }
             )
 
-    initial = cstr(data.get("message") or ticket.message or "").strip()
+    initial = cstr(data.get("message") or data.get("description") or ticket.message or "").strip()
     if initial and not any(row.get("text") == initial for row in entries):
         entries.append(
             {
@@ -584,6 +836,7 @@ def support_return_payload(ticket, body: dict[str, Any], message: str) -> dict[s
         "message": message,
         "ticket": ticket.name,
         "ticket_id": ticket.ticket_id,
+        "partner_ticket_id": getattr(ticket, "partner_ticket_id", ""),
         "stage": ticket.stage,
         "awb_number": ticket.awb_number,
         "courier_partner": ticket.courier_partner,
@@ -592,6 +845,67 @@ def support_return_payload(ticket, body: dict[str, Any], message: str) -> dict[s
         "latest_requested_on": ticket.creation,
         "raw_response": body,
     }
+
+
+def support_webhook_return_payload(ticket, message: str) -> dict[str, Any]:
+    return {
+        "success": True,
+        "message": message,
+        "ticket": ticket.name,
+        "ticket_id": ticket.ticket_id,
+        "partner_ticket_id": getattr(ticket, "partner_ticket_id", ""),
+        "stage": ticket.stage,
+        "awb_number": ticket.awb_number,
+        "latest_response": ticket.latest_response,
+        "linking_status": getattr(ticket, "linking_status", ""),
+    }
+
+
+def log_support_ticket_update(ticket, raw_payload: Any, data: dict[str, Any], was_new: bool):
+    linked = bool(ticket.shipment or ticket.sales_invoice or ticket.patient_encounter)
+    reason = "new" if was_new else "changed"
+    if not linked:
+        reason = "unlinked"
+
+    log = frappe.get_doc(
+        {
+            "doctype": "Shipment Tracking Sync Log",
+            "direction": "Inbound",
+            "action": "Support Ticket Update",
+            "reference_doctype": "Shipment Tracking Support Ticket",
+            "reference_name": ticket.name,
+            "shipkia_order_id": ticket.shipkia_order_id or data.get("record_id"),
+            "request_json": safe_json(raw_payload),
+            "response_json": safe_json(
+                {
+                    "reason": reason,
+                    "linked": linked,
+                    "ticket": ticket.name,
+                    "ticket_id": ticket.ticket_id,
+                    "partner_ticket_id": getattr(ticket, "partner_ticket_id", ""),
+                    "awb_number": ticket.awb_number,
+                    "latest_comment_created_on": latest_comment_created_on(data),
+                    "linking_status": getattr(ticket, "linking_status", ""),
+                }
+            ),
+            "status": "Success",
+        }
+    )
+    log.insert(ignore_permissions=True)
+
+
+def cleanup_successful_support_update_logs(days: int = 30):
+    cutoff = add_to_date(now_datetime(), days=-days)
+    frappe.db.delete(
+        "Shipment Tracking Sync Log",
+        {
+            "direction": "Inbound",
+            "action": "Support Ticket Update",
+            "status": "Success",
+            "modified": ["<", cutoff],
+        },
+    )
+    frappe.db.commit()
 
 
 def make_support_log(action: str, reference, payload: dict[str, Any]):

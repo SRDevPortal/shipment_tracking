@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import frappe
 import requests
+from frappe.utils import cint
 
 from .utils import (
     ACTIVE_SYNC_DEFAULT_LIMIT,
@@ -20,6 +21,14 @@ from .utils import (
 
 
 @frappe.whitelist()
+def get_tracking_ui_settings():
+    settings = get_settings()
+    return {
+        "enable_manual_tracking_refresh": bool(cint(getattr(settings, "enable_manual_tracking_refresh", 0)))
+    }
+
+
+@frappe.whitelist()
 def sync_tracking_for_shipment(shipment_name: str):
     shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
     if not shipment.shipkia_order_id:
@@ -29,10 +38,29 @@ def sync_tracking_for_shipment(shipment_name: str):
 
 @frappe.whitelist()
 def sync_tracking_for_invoice(invoice_name: str):
+    validate_manual_tracking_refresh_enabled()
     shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"sales_invoice": invoice_name}, "name")
     if not shipment_name:
         frappe.throw("No shipment record linked to this Sales Invoice.")
     return sync_tracking_for_shipment(shipment_name)
+
+
+@frappe.whitelist()
+def sync_tracking_for_encounter(encounter_name: str):
+    validate_manual_tracking_refresh_enabled()
+    shipment_name = (
+        frappe.db.get_value("Shipment Tracking Shipment", {"patient_encounter": encounter_name}, "name")
+        or frappe.db.get_value("Patient Encounter", encounter_name, "pe_shipkia_shipment")
+    )
+    if not shipment_name:
+        frappe.throw("No shipment record linked to this Patient Encounter.")
+    return sync_tracking_for_shipment(shipment_name)
+
+
+def validate_manual_tracking_refresh_enabled():
+    settings = get_settings()
+    if not cint(getattr(settings, "enable_manual_tracking_refresh", 0)):
+        frappe.throw("Manual shipment status refresh is disabled in Shipment Tracking Settings.")
 
 
 @frappe.whitelist()

@@ -43,6 +43,13 @@ def create_workspace():
             {
                 "type": "shortcut",
                 "data": {
+                    "shortcut_name": "Support Tickets",
+                    "col": 3,
+                },
+            },
+            {
+                "type": "shortcut",
+                "data": {
                     "shortcut_name": "Sync Logs",
                     "col": 3,
                 },
@@ -69,10 +76,10 @@ def create_workspace():
 
     doc.append("shortcuts", {
         "type": "DocType",
-        "link_to": "Shipment Tracking Shipment Event",
-        "label": "Shipment Events",
+        "link_to": "Shipment Tracking Support Ticket",
+        "label": "Support Tickets",
         "doc_view": "List",
-        "color": "Purple"
+        "color": "Red"
     })
 
     doc.append("shortcuts", {
@@ -107,9 +114,9 @@ def create_workspace():
 
     doc.append("links", {
         "type": "Link",
-        "label": "Shipment Events",
+        "label": "Support Tickets",
         "link_type": "DocType",
-        "link_to": "Shipment Tracking Shipment Event"
+        "link_to": "Shipment Tracking Support Ticket"
     })
 
     doc.append("links", {

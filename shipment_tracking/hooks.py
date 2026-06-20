@@ -25,4 +25,10 @@ has_permission = {
     "Shipment Tracking Support Ticket": "shipment_tracking.api.support.has_support_ticket_permission",
 }
 
+scheduler_events = {
+    "daily": [
+        "shipment_tracking.api.support.cleanup_successful_support_update_logs",
+    ],
+}
+
 fixtures = []

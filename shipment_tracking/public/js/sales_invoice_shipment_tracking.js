@@ -53,22 +53,10 @@ frappe.ui.form.on("Sales Invoice", {
                     });
                 });
             }, __("Actions"));
-            if (can_open_shipment) {
-                frm.add_custom_button(__("Refresh Shipment Status"), () => {
-                    frappe.call({
-                        method: "shipment_tracking.api.tracking.sync_tracking_for_invoice",
-                        args: { invoice_name: frm.doc.name },
-                        freeze: true,
-                        freeze_message: __("Refreshing shipment status..."),
-                        callback(r) {
-                            if (!r.exc) {
-                                frappe.msgprint(r.message.message || "Shipment updated.");
-                                frm.reload_doc();
-                            }
-                        }
-                    });
-                }, __("Actions"));
-            }
+        }
+
+        if (has_tracking_reference(frm)) {
+            add_manual_tracking_refresh_button(frm);
         }
 
         setTimeout(() => render_sales_invoice_support_panel(frm), 300);
@@ -80,6 +68,36 @@ frappe.ui.form.on("Sales Invoice", {
         }
     }
 });
+
+function has_tracking_reference(frm) {
+    return Boolean(frm.doc.si_shipkia_order_id || frm.doc.si_shipkia_shipment);
+}
+
+function add_manual_tracking_refresh_button(frm) {
+    frappe.call({
+        method: "shipment_tracking.api.tracking.get_tracking_ui_settings",
+        callback(r) {
+            if (r.exc || !(r.message || {}).enable_manual_tracking_refresh) {
+                return;
+            }
+
+            frm.add_custom_button(__("Refresh Shipment Status"), () => {
+                frappe.call({
+                    method: "shipment_tracking.api.tracking.sync_tracking_for_invoice",
+                    args: { invoice_name: frm.doc.name },
+                    freeze: true,
+                    freeze_message: __("Refreshing shipment status..."),
+                    callback(r) {
+                        if (!r.exc) {
+                            frappe.msgprint(r.message.message || "Shipment updated.");
+                            frm.reload_doc();
+                        }
+                    }
+                });
+            }, __("Actions"));
+        }
+    });
+}
 
 function render_sales_invoice_support_panel(frm) {
     if (!frm.doc.si_shipkia_order_id || !frm.fields_dict.si_support_actions_html) {

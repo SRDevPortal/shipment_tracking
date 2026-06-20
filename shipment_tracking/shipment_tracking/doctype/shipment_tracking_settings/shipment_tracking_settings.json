@@ -6,6 +6,7 @@
  "field_order": [
   "enabled",
   "create_order_url",
+  "enable_manual_tracking_refresh",
   "tracking_url",
   "support_create_url",
   "support_update_url",
@@ -39,7 +40,15 @@
    "fieldname": "tracking_url",
    "fieldtype": "Data",
    "label": "Tracking URL",
-   "reqd": 1
+   "depends_on": "eval:doc.enable_manual_tracking_refresh",
+   "mandatory_depends_on": "eval:doc.enable_manual_tracking_refresh"
+  },
+  {
+   "fieldname": "enable_manual_tracking_refresh",
+   "fieldtype": "Check",
+   "label": "Enable Manual Tracking Refresh",
+   "default": "0",
+   "description": "Show and allow the manual Refresh Shipment Status action."
   },
   {
    "fieldname": "support_create_url",
