@@ -48,12 +48,30 @@ def sync_tracking_for_invoice(invoice_name: str):
 @frappe.whitelist()
 def sync_tracking_for_encounter(encounter_name: str):
     validate_manual_tracking_refresh_enabled()
+    encounter = frappe.get_doc("Patient Encounter", encounter_name)
     shipment_name = (
         frappe.db.get_value("Shipment Tracking Shipment", {"patient_encounter": encounter_name}, "name")
-        or frappe.db.get_value("Patient Encounter", encounter_name, "pe_shipkia_shipment")
+        or getattr(encounter, "pe_shipkia_shipment", None)
     )
+    if not shipment_name and getattr(encounter, "pe_shipkia_order_id", None):
+        shipment_name = frappe.db.get_value(
+            "Shipment Tracking Shipment",
+            {"shipkia_order_id": encounter.pe_shipkia_order_id},
+            "name",
+        )
     if not shipment_name:
         frappe.throw("No shipment record linked to this Patient Encounter.")
+
+    shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
+    if not shipment.patient_encounter:
+        shipment.patient_encounter = encounter.name
+        shipment.save(ignore_permissions=True)
+        mirror_summary_fields(
+            shipment,
+            sales_invoice=shipment.sales_invoice,
+            encounter_name=encounter.name,
+        )
+
     return sync_tracking_for_shipment(shipment_name)
 
 

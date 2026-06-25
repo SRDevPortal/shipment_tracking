@@ -3,7 +3,9 @@ import frappe
 from .utils import create_cf_with_module, delete_custom_fields, migrate_custom_field_data
 
 DT = "Patient Encounter"
-ONLINE_ONLY = 'eval:doc.sr_encounter_place=="Online"'
+SHIPMENT_EXISTS = (
+    "eval:doc.pe_shipkia_order_id || doc.pe_shipkia_shipment || doc.pe_latest_support_ticket"
+)
 
 
 def apply():
@@ -15,20 +17,21 @@ def apply():
                     "label": "Shipment Tracking",
                     "fieldtype": "Tab Break",
                     "insert_after": "clinical_notes",
+                    "depends_on": SHIPMENT_EXISTS,
                 },
                 {
                     "fieldname": "pe_shipment_tracking_section",
                     "fieldtype": "Section Break",
                     "insert_after": "pe_shipment_tracking_tab",
                     "collapsible": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                 },
                 {
                     "fieldname": "pe_shipkia_order_id",
                     "label": "Shipkia Order ID",
                     "fieldtype": "Data",
                     "read_only": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "in_standard_filter": 1,
                     "insert_after": "pe_shipment_tracking_section",
                 },
@@ -37,7 +40,7 @@ def apply():
                     "label": "Shipkia AWB Number",
                     "fieldtype": "Data",
                     "read_only": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_shipkia_order_id",
                 },
                 {
@@ -45,7 +48,7 @@ def apply():
                     "label": "Shipkia Stage",
                     "fieldtype": "Data",
                     "read_only": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_shipkia_awb_number",
                 },
                 {
@@ -53,7 +56,7 @@ def apply():
                     "label": "Shipkia Status",
                     "fieldtype": "Data",
                     "read_only": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "in_standard_filter": 1,
                     "insert_after": "pe_shipkia_stage",
                 },
@@ -62,7 +65,7 @@ def apply():
                     "label": "Estimated Delivery",
                     "fieldtype": "Datetime",
                     "read_only": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_shipkia_status",
                 },
                 {
@@ -70,7 +73,7 @@ def apply():
                     "label": "Delivered On",
                     "fieldtype": "Datetime",
                     "read_only": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_shipkia_estimated_delivery",
                 },
                 {
@@ -78,7 +81,7 @@ def apply():
                     "label": "Courier Partner",
                     "fieldtype": "Data",
                     "read_only": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_shipkia_delivered_on",
                 },
                 {
@@ -87,20 +90,20 @@ def apply():
                     "fieldtype": "Link",
                     "options": "Shipment Tracking Shipment",
                     "read_only": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_delivery_partner",
                 },
                 {
                     "fieldname": "pe_support_ticket_column",
                     "fieldtype": "Column Break",
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_shipkia_shipment",
                 },
                 {
                     "fieldname": "pe_support_actions_html",
                     "label": "Support Actions",
                     "fieldtype": "HTML",
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_support_ticket_column",
                 },
                 {
@@ -110,7 +113,7 @@ def apply():
                     "options": "Shipment Tracking Support Ticket",
                     "read_only": 1,
                     "hidden": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_support_actions_html",
                 },
                 {
@@ -119,7 +122,7 @@ def apply():
                     "fieldtype": "Data",
                     "read_only": 1,
                     "hidden": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_latest_support_ticket",
                 },
                 {
@@ -128,7 +131,7 @@ def apply():
                     "fieldtype": "Data",
                     "read_only": 1,
                     "hidden": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_latest_support_ticket_id",
                 },
                 {
@@ -137,7 +140,7 @@ def apply():
                     "fieldtype": "Data",
                     "read_only": 1,
                     "hidden": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_latest_support_issue_type",
                 },
                 {
@@ -146,7 +149,7 @@ def apply():
                     "fieldtype": "Small Text",
                     "read_only": 1,
                     "hidden": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_latest_support_stage",
                 },
                 {
@@ -155,7 +158,7 @@ def apply():
                     "fieldtype": "Datetime",
                     "read_only": 1,
                     "hidden": 1,
-                    "depends_on": ONLINE_ONLY,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "pe_latest_support_response",
                 },
             ]

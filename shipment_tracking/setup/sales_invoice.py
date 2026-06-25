@@ -3,6 +3,9 @@ import frappe
 from .utils import create_cf_with_module, delete_custom_fields, migrate_custom_field_data
 
 DT = "Sales Invoice"
+SHIPMENT_EXISTS = (
+    "eval:doc.si_shipkia_order_id || doc.si_shipkia_shipment || doc.si_latest_support_ticket"
+)
 
 
 def apply():
@@ -22,18 +25,21 @@ def apply():
                     "label": "Shipment Tracking",
                     "fieldtype": "Tab Break",
                     "insert_after": "terms",
+                    "depends_on": SHIPMENT_EXISTS,
                 },
                 {
                     "fieldname": "si_shipment_tracking_section",
                     "fieldtype": "Section Break",
                     "insert_after": "si_shipment_tracking_tab",
                     "collapsible": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                 },
                 {
                     "fieldname": "si_shipkia_order_id",
                     "label": "Shipkia Order ID",
                     "fieldtype": "Data",
                     "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "in_list_view": 1,
                     "in_standard_filter": 1,
                     "insert_after": "si_shipment_tracking_section",
@@ -43,6 +49,7 @@ def apply():
                     "label": "Shipkia AWB Number",
                     "fieldtype": "Data",
                     "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "in_list_view": 1,
                     "insert_after": "si_shipkia_order_id",
                 },
@@ -51,6 +58,7 @@ def apply():
                     "label": "Shipkia Stage",
                     "fieldtype": "Data",
                     "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "in_list_view": 1,
                     "insert_after": "si_shipkia_awb_number",
                 },
@@ -59,6 +67,7 @@ def apply():
                     "label": "Shipkia Status",
                     "fieldtype": "Data",
                     "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "in_list_view": 1,
                     "in_standard_filter": 1,
                     "insert_after": "si_shipkia_stage",
@@ -68,6 +77,7 @@ def apply():
                     "label": "Estimated Delivery",
                     "fieldtype": "Datetime",
                     "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_shipkia_status",
                 },
                 {
@@ -75,6 +85,7 @@ def apply():
                     "label": "Delivered On",
                     "fieldtype": "Datetime",
                     "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_shipkia_estimated_delivery",
                 },
                 {
@@ -82,6 +93,7 @@ def apply():
                     "label": "Courier Partner",
                     "fieldtype": "Data",
                     "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "in_list_view": 1,
                     "insert_after": "si_shipkia_delivered_on",
                 },
@@ -91,17 +103,20 @@ def apply():
                     "fieldtype": "Link",
                     "options": "Shipment Tracking Shipment",
                     "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_delivery_partner",
                 },
                 {
                     "fieldname": "si_support_ticket_column",
                     "fieldtype": "Column Break",
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_shipkia_shipment",
                 },
                 {
                     "fieldname": "si_support_actions_html",
                     "label": "Support Actions",
                     "fieldtype": "HTML",
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_support_ticket_column",
                 },
                 {
@@ -111,6 +126,7 @@ def apply():
                     "options": "Shipment Tracking Support Ticket",
                     "read_only": 1,
                     "hidden": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_support_actions_html",
                 },
                 {
@@ -119,6 +135,7 @@ def apply():
                     "fieldtype": "Data",
                     "read_only": 1,
                     "hidden": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_latest_support_ticket",
                 },
                 {
@@ -127,6 +144,7 @@ def apply():
                     "fieldtype": "Data",
                     "read_only": 1,
                     "hidden": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_latest_support_ticket_id",
                 },
                 {
@@ -135,6 +153,7 @@ def apply():
                     "fieldtype": "Data",
                     "read_only": 1,
                     "hidden": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_latest_support_issue_type",
                 },
                 {
@@ -143,6 +162,7 @@ def apply():
                     "fieldtype": "Small Text",
                     "read_only": 1,
                     "hidden": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_latest_support_stage",
                 },
                 {
@@ -151,6 +171,7 @@ def apply():
                     "fieldtype": "Datetime",
                     "read_only": 1,
                     "hidden": 1,
+                    "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_latest_support_response",
                 },
             ]

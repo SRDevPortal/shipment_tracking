@@ -42,7 +42,7 @@ function add_manual_tracking_refresh_button(frm) {
 }
 
 function render_patient_encounter_support_panel(frm) {
-    if (!is_shipment_enabled(frm) || !frm.fields_dict.pe_support_actions_html) {
+    if (!has_tracking_reference(frm) || !frm.fields_dict.pe_support_actions_html) {
         return;
     }
 
@@ -76,17 +76,6 @@ function render_patient_encounter_support_panel(frm) {
             }
         }
     });
-}
-
-function is_shipment_enabled(frm) {
-    return Boolean(
-        frm.doc.pe_shipkia_order_id
-        || frm.doc.pe_shipkia_shipment
-        || frm.doc.has_shipment_tracking
-        || frm.doc.pe_has_shipment_tracking
-        || frm.doc.shipment_tracking
-        || frm.doc.sr_encounter_place === "Online"
-    );
 }
 
 function render_support_panel(config) {
