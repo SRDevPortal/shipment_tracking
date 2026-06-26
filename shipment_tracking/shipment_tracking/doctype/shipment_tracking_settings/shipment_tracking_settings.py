@@ -11,3 +11,12 @@ class ShipmentTrackingSettings(Document):
             return
 
         self.tracking_url = ""
+
+    def on_update(self):
+        try:
+            from shipment_tracking.workspace import create_workspace
+
+            create_workspace()
+            frappe.clear_cache()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Shipment Tracking Workspace Refresh Failed")

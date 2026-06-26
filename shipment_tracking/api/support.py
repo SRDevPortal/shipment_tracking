@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 import frappe
 import requests
-from frappe.utils import cstr
+from frappe.utils import cint, cstr
 from frappe.utils.data import add_to_date, get_datetime, now_datetime
 
 from .utils import get_settings, make_auth_headers, safe_json, safe_response_json, update_doc_if_exists
@@ -20,6 +20,23 @@ HUB_ADDRESS_ISSUE_TYPE = "Request for self collect/drop"
 SUPPORT_RATE_LIMIT = 25
 SUPPORT_RATE_WINDOW_SECONDS = 60
 HUB_ADDRESS_COOLDOWN_HOURS = 12
+
+
+def is_support_ticket_enabled() -> bool:
+    settings = get_settings()
+    return bool(cint(getattr(settings, "enabled", 0)) and cint(getattr(settings, "enable_support_ticket", 0)))
+
+
+def assert_support_ticket_enabled():
+    if not is_support_ticket_enabled():
+        frappe.throw("Support Ticket is disabled in Shipment Tracking Settings.")
+
+
+@frappe.whitelist()
+def get_support_ticket_ui_settings():
+    return {
+        "enable_support_ticket": is_support_ticket_enabled(),
+    }
 
 
 def get_support_ticket_permission_query(user: str | None = None) -> str:
@@ -38,6 +55,7 @@ def has_support_ticket_permission(doc, ptype: str | None = None, user: str | Non
 
 @frappe.whitelist()
 def request_reattempt_for_invoice(invoice_name: str, message: str | None = None):
+    assert_support_ticket_enabled()
     shipment = get_reference_for_invoice(invoice_name)
     default_message = "Please reattempt delivery for this shipment."
     return create_support_ticket(shipment, REATTEMPT_ISSUE_TYPE, message or default_message)
@@ -45,6 +63,7 @@ def request_reattempt_for_invoice(invoice_name: str, message: str | None = None)
 
 @frappe.whitelist()
 def request_hub_address_for_invoice(invoice_name: str, message: str | None = None):
+    assert_support_ticket_enabled()
     shipment = get_reference_for_invoice(invoice_name)
     assert_hub_address_allowed(get_reference_order_id(shipment))
     default_message = "Kindly provide hub address for self pickup."
@@ -53,6 +72,7 @@ def request_hub_address_for_invoice(invoice_name: str, message: str | None = Non
 
 @frappe.whitelist()
 def request_reattempt_for_encounter(encounter_name: str, message: str | None = None):
+    assert_support_ticket_enabled()
     encounter = frappe.get_doc("Patient Encounter", encounter_name)
     validate_read_permission(encounter)
     validate_encounter_shipment_enabled(encounter)
@@ -63,6 +83,7 @@ def request_reattempt_for_encounter(encounter_name: str, message: str | None = N
 
 @frappe.whitelist()
 def request_hub_address_for_encounter(encounter_name: str, message: str | None = None):
+    assert_support_ticket_enabled()
     encounter = frappe.get_doc("Patient Encounter", encounter_name)
     validate_read_permission(encounter)
     validate_encounter_shipment_enabled(encounter)
@@ -74,12 +95,21 @@ def request_hub_address_for_encounter(encounter_name: str, message: str | None =
 
 @frappe.whitelist()
 def get_support_state_for_invoice(invoice_name: str):
+    assert_support_ticket_enabled()
     reference = get_reference_for_invoice(invoice_name)
     return get_support_state(reference)
 
 
 @frappe.whitelist()
+def get_existing_support_state_for_invoice(invoice_name: str):
+    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+    validate_read_permission(invoice)
+    return get_existing_support_state(invoice, getattr(invoice, "si_latest_support_ticket", None))
+
+
+@frappe.whitelist()
 def get_support_state_for_encounter(encounter_name: str):
+    assert_support_ticket_enabled()
     encounter = frappe.get_doc("Patient Encounter", encounter_name)
     validate_read_permission(encounter)
     validate_encounter_shipment_enabled(encounter)
@@ -88,7 +118,15 @@ def get_support_state_for_encounter(encounter_name: str):
 
 
 @frappe.whitelist()
+def get_existing_support_state_for_encounter(encounter_name: str):
+    encounter = frappe.get_doc("Patient Encounter", encounter_name)
+    validate_read_permission(encounter)
+    return get_existing_support_state(encounter, getattr(encounter, "pe_latest_support_ticket", None))
+
+
+@frappe.whitelist()
 def refresh_support_ticket(ticket_name: str):
+    assert_support_ticket_enabled()
     ticket = frappe.get_doc("Shipment Tracking Support Ticket", ticket_name)
     validate_read_permission(ticket)
 
@@ -130,6 +168,7 @@ def refresh_support_ticket(ticket_name: str):
 
 @frappe.whitelist(allow_guest=True)
 def support_ticket_update(payload: Any | None = None):
+    assert_support_ticket_enabled()
     raw_payload = payload if payload is not None else (frappe.request.get_json() or {})
     data = extract_support_payload(raw_payload)
     if not data:
@@ -160,6 +199,7 @@ def support_ticket_update(payload: Any | None = None):
 
 
 def create_support_ticket(reference, issue_type: str, message: str):
+    assert_support_ticket_enabled()
     validate_read_permission(reference)
 
     order_id = get_reference_order_id(reference)
@@ -217,6 +257,7 @@ def create_support_ticket(reference, issue_type: str, message: str):
 
 
 def get_enabled_settings():
+    assert_support_ticket_enabled()
     settings = get_settings()
     if not settings.enabled:
         frappe.throw("Shipment Tracking is disabled in settings.")
@@ -317,6 +358,34 @@ def get_support_state(reference) -> dict[str, Any]:
         "hub_address_disabled_until": cooldown.get("disabled_until") if cooldown else None,
         "hub_address_disabled_message": cooldown.get("message") if cooldown else "",
     }
+
+
+def get_existing_support_state(reference, latest_ticket_name: str | None = None) -> dict[str, Any]:
+    order_id = get_reference_order_id(reference)
+    latest_ticket = existing_visible_ticket(order_id, latest_ticket_name)
+
+    return {
+        "success": True,
+        "read_only": True,
+        "has_existing_ticket": bool(latest_ticket),
+        "order_id": order_id,
+        "latest_ticket": latest_ticket.name if latest_ticket else "",
+        "latest_ticket_id": latest_ticket.ticket_id if latest_ticket else "",
+        "latest_issue_type": latest_ticket.issue_type if latest_ticket else "",
+        "latest_stage": latest_ticket.stage if latest_ticket else "",
+        "latest_response": latest_ticket.latest_response if latest_ticket else "",
+        "responses": support_response_entries(latest_ticket) if latest_ticket else [],
+        "latest_requested_on": latest_ticket.creation if latest_ticket else None,
+    }
+
+
+def existing_visible_ticket(order_id: str, latest_ticket_name: str | None = None):
+    if latest_ticket_name and frappe.db.exists("Shipment Tracking Support Ticket", latest_ticket_name):
+        ticket = frappe.get_doc("Shipment Tracking Support Ticket", latest_ticket_name)
+        validate_read_permission(ticket)
+        return ticket
+
+    return latest_visible_ticket(order_id)
 
 
 def latest_visible_ticket(order_id: str):
@@ -899,6 +968,9 @@ def log_support_ticket_update(ticket, raw_payload: Any, data: dict[str, Any], wa
 
 
 def cleanup_successful_support_update_logs(days: int = 30):
+    if not is_support_ticket_enabled():
+        return
+
     cutoff = add_to_date(now_datetime(), days=-days)
     frappe.db.delete(
         "Shipment Tracking Sync Log",

@@ -1,7 +1,7 @@
 {
  "charts": [],
  "content": "[{\"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Shipment Tracking</b></span>\", \"col\": 12}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Shipments\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Support Tickets\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Sync Logs\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Settings\", \"col\": 3}}]",
- "creation": "2026-04-14 01:42:09.075020",
+ "creation": "2026-04-06 14:00:45.258999",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -83,7 +83,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-06-21 01:19:28.823557",
+ "modified": "2026-06-26 19:09:34.340850",
  "modified_by": "Administrator",
  "module": "Shipment Tracking",
  "name": "Shipment Tracking",

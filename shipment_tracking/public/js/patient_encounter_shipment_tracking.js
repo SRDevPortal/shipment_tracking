@@ -56,30 +56,64 @@ function render_patient_encounter_support_panel(frm) {
     frm.remove_custom_button("Open Support Ticket", "Shipkia Support");
 
     const wrapper = frm.fields_dict.pe_support_actions_html.$wrapper;
-    wrapper.html(`<div class="text-muted small">${__("Loading support actions...")}</div>`);
 
     frappe.call({
-        method: "shipment_tracking.api.support.get_support_state_for_encounter",
+        method: "shipment_tracking.api.support.get_support_ticket_ui_settings",
+        callback(r) {
+            if (r.exc || !(r.message || {}).enable_support_ticket) {
+                render_existing_patient_encounter_support_panel(frm, wrapper);
+                return;
+            }
+
+            wrapper.html(`<div class="text-muted small">${__("Loading support actions...")}</div>`);
+
+            frappe.call({
+                method: "shipment_tracking.api.support.get_support_state_for_encounter",
+                args: { encounter_name: frm.doc.name },
+                callback(r) {
+                    if (!r.exc) {
+                        render_support_panel({
+                            frm,
+                            wrapper,
+                            state: r.message || {},
+                            sourceArg: "encounter_name",
+                            sourceName: frm.doc.name,
+                            reattemptMethod: "shipment_tracking.api.support.request_reattempt_for_encounter",
+                            hubMethod: "shipment_tracking.api.support.request_hub_address_for_encounter",
+                            refreshTicket: frm.doc.pe_latest_support_ticket || (r.message || {}).latest_ticket
+                        });
+                    }
+                }
+            });
+        }
+    });
+}
+
+function render_existing_patient_encounter_support_panel(frm, wrapper) {
+    frappe.call({
+        method: "shipment_tracking.api.support.get_existing_support_state_for_encounter",
         args: { encounter_name: frm.doc.name },
         callback(r) {
-            if (!r.exc) {
-                render_support_panel({
-                    frm,
-                    wrapper,
-                    state: r.message || {},
-                    sourceArg: "encounter_name",
-                    sourceName: frm.doc.name,
-                    reattemptMethod: "shipment_tracking.api.support.request_reattempt_for_encounter",
-                    hubMethod: "shipment_tracking.api.support.request_hub_address_for_encounter",
-                    refreshTicket: frm.doc.pe_latest_support_ticket || (r.message || {}).latest_ticket
-                });
+            const state = r.message || {};
+            if (r.exc || !state.has_existing_ticket) {
+                wrapper.empty();
+                return;
             }
+
+            render_support_panel({
+                frm,
+                wrapper,
+                state,
+                readOnly: true,
+                refreshTicket: frm.doc.pe_latest_support_ticket || state.latest_ticket
+            });
         }
     });
 }
 
 function render_support_panel(config) {
     const { frm, wrapper, state, refreshTicket } = config;
+    const readOnly = Boolean(config.readOnly || state.read_only);
     const latestTicket = state.latest_ticket || refreshTicket || "";
     const hubDisabled = Boolean(state.hub_address_disabled);
     const disabledText = state.hub_address_disabled_message || "";
@@ -90,14 +124,14 @@ function render_support_panel(config) {
 
     wrapper.html(`
         <div class="shipment-support-panel" style="display:flex; flex-direction:column; gap:10px;">
-            <div class="btn-group" style="display:flex; flex-wrap:wrap; gap:8px;">
+            ${readOnly ? "" : `<div class="btn-group" style="display:flex; flex-wrap:wrap; gap:8px;">
                 <button class="btn btn-xs btn-primary" data-action="reattempt">${__("Request Reattempt")}</button>
                 <button class="btn btn-xs btn-default" data-action="hub" ${hubDisabled ? "disabled" : ""}>
                     ${__("Request Hub Address")}
                 </button>
                 ${latestTicket ? `<button class="btn btn-xs btn-default" data-action="refresh">${__("Refresh Support Ticket")}</button>` : ""}
                 ${latestTicket ? `<button class="btn btn-xs btn-default" data-action="open">${__("Open Support Ticket")}</button>` : ""}
-            </div>
+            </div>`}
             ${hubDisabled ? `<div class="text-muted small">${frappe.utils.escape_html(disabledText)}</div>` : ""}
             <div class="shipment-support-chat" style="border:1px solid var(--border-color); border-radius:6px; padding:10px; background:var(--fg-color);">
                 <div class="text-muted small">${__("Shipkia Response")}</div>
@@ -108,6 +142,10 @@ function render_support_panel(config) {
             </div>
         </div>
     `);
+
+    if (readOnly) {
+        return;
+    }
 
     wrapper.find('[data-action="reattempt"]').on("click", () => {
         submit_support_request(config, __("Request Reattempt"), config.reattemptMethod, __("Please reattempt delivery for this shipment."));

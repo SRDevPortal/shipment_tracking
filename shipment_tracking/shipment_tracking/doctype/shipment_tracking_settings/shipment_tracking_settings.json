@@ -4,26 +4,45 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "order_settings_tab",
+  "order_api_section",
   "enabled",
   "create_order_url",
   "enable_manual_tracking_refresh",
   "tracking_url",
-  "support_create_url",
-  "support_update_url",
-  "support_get_url",
-  "support_list_url",
-  "pickup_address",
-  "order_channel",
+  "order_credentials_section",
   "api_key",
   "api_secret",
+  "order_credentials_column",
   "enable_webhook_security",
   "webhook_secret",
+  "order_defaults_section",
+  "pickup_address",
+  "order_channel",
+  "order_defaults_column",
   "default_parcel_length",
   "default_parcel_breadth",
   "default_parcel_height",
-  "default_dead_weight"
+  "default_dead_weight",
+  "support_ticket_settings_tab",
+  "support_ticket_api_section",
+  "enable_support_ticket",
+  "support_create_url",
+  "support_update_url",
+  "support_get_url",
+  "support_list_url"
  ],
  "fields": [
+  {
+   "fieldname": "order_settings_tab",
+   "fieldtype": "Tab Break",
+   "label": "Order Settings"
+  },
+  {
+   "fieldname": "order_api_section",
+   "fieldtype": "Section Break",
+   "label": "Order API"
+  },
   {
    "fieldname": "enabled",
    "fieldtype": "Check",
@@ -51,28 +70,9 @@
    "description": "Show and allow the manual Refresh Shipment Status action."
   },
   {
-   "fieldname": "support_create_url",
-   "fieldtype": "Data",
-   "label": "Support Create URL",
-   "description": "Shipkia create support ticket API endpoint"
-  },
-  {
-   "fieldname": "support_update_url",
-   "fieldtype": "Data",
-   "label": "Support Update URL",
-   "description": "Shipkia update support ticket API endpoint"
-  },
-  {
-   "fieldname": "support_get_url",
-   "fieldtype": "Data",
-   "label": "Support Get URL",
-   "description": "Shipkia get support ticket API endpoint"
-  },
-  {
-   "fieldname": "support_list_url",
-   "fieldtype": "Data",
-   "label": "Support List URL",
-   "description": "Shipkia list support tickets API endpoint"
+   "fieldname": "order_defaults_section",
+   "fieldtype": "Section Break",
+   "label": "Order Defaults"
   },
   {
    "fieldname": "pickup_address",
@@ -88,31 +88,8 @@
    "reqd": 1
   },
   {
-   "fieldname": "api_key",
-   "fieldtype": "Password",
-   "label": "API Key",
-   "reqd": 1
-  },
-  {
-   "fieldname": "api_secret",
-   "fieldtype": "Password",
-   "label": "API Secret",
-   "reqd": 1
-  },
-  {
-   "fieldname": "webhook_secret",
-   "fieldtype": "Password",
-   "label": "Webhook Secret",
-   "depends_on": "eval:doc.enable_webhook_security",
-   "description": "Secret key for validating incoming webhooks",
-   "insert_after": "enable_webhook_security"
-  },
-  {
-   "fieldname": "enable_webhook_security",
-   "fieldtype": "Check",
-   "label": "Enable Webhook Security",
-   "default": "1",
-   "insert_after": "api_secret"
+   "fieldname": "order_defaults_column",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "default_parcel_length",
@@ -137,6 +114,85 @@
    "fieldtype": "Float",
    "label": "Default Dead Weight",
    "default": "0.1"
+  },
+  {
+   "fieldname": "order_credentials_section",
+   "fieldtype": "Section Break",
+   "label": "Credentials"
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_secret",
+   "fieldtype": "Password",
+   "label": "API Secret",
+   "reqd": 1
+  },
+  {
+   "fieldname": "order_credentials_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enable_webhook_security",
+   "fieldtype": "Check",
+   "label": "Enable Webhook Security",
+   "default": "1"
+  },
+  {
+   "fieldname": "webhook_secret",
+   "fieldtype": "Password",
+   "label": "Webhook Secret",
+   "depends_on": "eval:doc.enable_webhook_security",
+   "description": "Secret key for validating incoming webhooks"
+  },
+  {
+   "fieldname": "support_ticket_settings_tab",
+   "fieldtype": "Tab Break",
+   "label": "Support Ticket Settings"
+  },
+  {
+   "fieldname": "support_ticket_api_section",
+   "fieldtype": "Section Break",
+   "label": "Support Ticket API"
+  },
+  {
+   "fieldname": "enable_support_ticket",
+   "fieldtype": "Check",
+   "label": "Enable Support Ticket",
+   "default": "0",
+   "description": "Show support ticket actions and allow support ticket API/webhook processing."
+  },
+  {
+   "fieldname": "support_create_url",
+   "fieldtype": "Data",
+   "label": "Support Create URL",
+   "depends_on": "eval:doc.enable_support_ticket",
+   "description": "Shipkia create support ticket API endpoint"
+  },
+  {
+   "fieldname": "support_update_url",
+   "fieldtype": "Data",
+   "label": "Support Update URL",
+   "depends_on": "eval:doc.enable_support_ticket",
+   "description": "Shipkia update support ticket API endpoint"
+  },
+  {
+   "fieldname": "support_get_url",
+   "fieldtype": "Data",
+   "label": "Support Get URL",
+   "depends_on": "eval:doc.enable_support_ticket",
+   "description": "Shipkia get support ticket API endpoint"
+  },
+  {
+   "fieldname": "support_list_url",
+   "fieldtype": "Data",
+   "label": "Support List URL",
+   "depends_on": "eval:doc.enable_support_ticket",
+   "description": "Shipkia list support tickets API endpoint"
   }
  ],
  "index_web_pages_for_search": 1,
