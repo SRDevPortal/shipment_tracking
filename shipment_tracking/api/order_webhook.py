@@ -3,7 +3,8 @@ from __future__ import annotations
 import frappe
 from frappe.utils import get_datetime
 
-from .tracking import mirror_summary_fields
+from .utils import validate_webhook_secret
+from .tracking import get_linked_encounter, get_or_create_shipment, mirror_summary_fields, repair_shipment_links
 
 
 def extract_webhook_body(payload):
@@ -44,18 +45,7 @@ def order_status_update():
     # -----------------------------
     settings = frappe.get_single("Shipment Tracking Settings")
 
-    enable_security = settings.get("enable_webhook_security")
-    SECRET = settings.get_password("webhook_secret", raise_exception=False) or ""
-    incoming_secret = frappe.get_request_header("X-Webhook-Secret")
-
-    # Apply validation ONLY if enabled
-    if enable_security:
-        if not SECRET or incoming_secret != SECRET:
-            frappe.local.response["http_status_code"] = 403
-            return {
-                "success": False,
-                "message": "Unauthorized request"
-            }
+    validate_webhook_secret(settings)
 
     # -----------------------------
     # REQUEST DATA
@@ -72,33 +62,17 @@ def order_status_update():
         }
 
     # -----------------------------
-    # GET / CREATE SHIPMENT
+    # GET / CREATE SHIPMENT AND LINKS
     # -----------------------------
-    shipment_name = frappe.db.get_value(
-        "Shipment Tracking Shipment",
-        {"shipkia_order_id": order_id},
-        "name"
-    )
+    si = None
+    encounter = None
+    sales_invoice = frappe.db.get_value("Sales Invoice", {"si_shipkia_order_id": order_id}, "name")
+    if sales_invoice:
+        si = frappe.get_doc("Sales Invoice", sales_invoice)
+        encounter = get_linked_encounter(si)
 
-    if not shipment_name:
-        shipment = frappe.get_doc({
-            "doctype": "Shipment Tracking Shipment",
-            "shipkia_order_id": order_id,
-        }).insert(ignore_permissions=True)
-    else:
-        shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
-
-    # -----------------------------
-    # LINK SALES INVOICE WHEN WEBHOOK ARRIVES FIRST
-    # -----------------------------
-    if not shipment.sales_invoice:
-        sales_invoice = frappe.db.get_value(
-            "Sales Invoice",
-            {"si_shipkia_order_id": order_id},
-            "name"
-        )
-        if sales_invoice:
-            shipment.sales_invoice = sales_invoice
+    shipment = get_or_create_shipment(si=si, encounter=encounter, order_id=order_id)
+    repair_shipment_links(shipment, si=si, encounter=encounter, order_id=order_id)
 
     # -----------------------------
     # CLEAN DATA

@@ -12,7 +12,14 @@ import requests
 from frappe.utils import cint, cstr
 from frappe.utils.data import add_to_date, get_datetime, now_datetime
 
-from .utils import get_settings, make_auth_headers, safe_json, safe_response_json, update_doc_if_exists
+from .utils import (
+    get_settings,
+    make_auth_headers,
+    safe_json,
+    safe_response_json,
+    update_doc_if_exists,
+    validate_webhook_secret,
+)
 
 
 REATTEMPT_ISSUE_TYPE = "Request for Reattempt Delivery"
@@ -168,7 +175,9 @@ def refresh_support_ticket(ticket_name: str):
 
 @frappe.whitelist(allow_guest=True)
 def support_ticket_update(payload: Any | None = None):
+    settings = get_settings()
     assert_support_ticket_enabled()
+    validate_webhook_secret(settings)
     raw_payload = payload if payload is not None else (frappe.request.get_json() or {})
     data = extract_support_payload(raw_payload)
     if not data:

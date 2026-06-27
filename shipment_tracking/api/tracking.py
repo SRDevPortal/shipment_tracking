@@ -39,40 +39,27 @@ def sync_tracking_for_shipment(shipment_name: str):
 @frappe.whitelist()
 def sync_tracking_for_invoice(invoice_name: str):
     validate_manual_tracking_refresh_enabled()
-    shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"sales_invoice": invoice_name}, "name")
-    if not shipment_name:
+    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+    shipment = get_or_create_shipment(si=invoice, order_id=getattr(invoice, "si_shipkia_order_id", None), create=False)
+    if not shipment:
         frappe.throw("No shipment record linked to this Sales Invoice.")
-    return sync_tracking_for_shipment(shipment_name)
+    repair_shipment_links(shipment, si=invoice, order_id=getattr(invoice, "si_shipkia_order_id", None))
+    return sync_tracking_for_shipment(shipment.name)
 
 
 @frappe.whitelist()
 def sync_tracking_for_encounter(encounter_name: str):
     validate_manual_tracking_refresh_enabled()
     encounter = frappe.get_doc("Patient Encounter", encounter_name)
-    shipment_name = (
-        frappe.db.get_value("Shipment Tracking Shipment", {"patient_encounter": encounter_name}, "name")
-        or getattr(encounter, "pe_shipkia_shipment", None)
+    shipment = get_or_create_shipment(
+        encounter=encounter,
+        order_id=getattr(encounter, "pe_shipkia_order_id", None),
+        create=False,
     )
-    if not shipment_name and getattr(encounter, "pe_shipkia_order_id", None):
-        shipment_name = frappe.db.get_value(
-            "Shipment Tracking Shipment",
-            {"shipkia_order_id": encounter.pe_shipkia_order_id},
-            "name",
-        )
-    if not shipment_name:
+    if not shipment:
         frappe.throw("No shipment record linked to this Patient Encounter.")
-
-    shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
-    if not shipment.patient_encounter:
-        shipment.patient_encounter = encounter.name
-        shipment.save(ignore_permissions=True)
-        mirror_summary_fields(
-            shipment,
-            sales_invoice=shipment.sales_invoice,
-            encounter_name=encounter.name,
-        )
-
-    return sync_tracking_for_shipment(shipment_name)
+    repair_shipment_links(shipment, encounter=encounter, order_id=getattr(encounter, "pe_shipkia_order_id", None))
+    return sync_tracking_for_shipment(shipment.name)
 
 
 def validate_manual_tracking_refresh_enabled():
@@ -160,18 +147,91 @@ def sync_tracking_by_order_id(order_id: str):
     }
 
 
-def create_or_update_shipment_from_order_response(si, encounter, order_id: str, body: dict):
-    shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"sales_invoice": si.name}, "name")
-    if shipment_name:
-        shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
-    else:
-        shipment = frappe.get_doc({"doctype": "Shipment Tracking Shipment"})
+def get_or_create_shipment(si=None, encounter=None, order_id: str | None = None, create: bool = True):
+    order_id = (order_id or "").strip()
+    lookups = []
+    if order_id:
+        lookups.append({"shipkia_order_id": order_id})
+    if si:
+        lookups.extend(
+            [
+                {"name": getattr(si, "si_shipkia_shipment", None)},
+                {"sales_invoice": si.name},
+            ]
+        )
+    if encounter:
+        lookups.extend(
+            [
+                {"name": getattr(encounter, "pe_shipkia_shipment", None)},
+                {"patient_encounter": encounter.name},
+            ]
+        )
 
-    shipment.sales_invoice = si.name
-    shipment.patient_encounter = encounter.name if encounter else None
-    shipment.patient = getattr(si, "patient", None)
-    shipment.customer = getattr(si, "customer", None)
-    shipment.shipkia_order_id = order_id
+    seen = set()
+    for filters in lookups:
+        filters = {key: value for key, value in filters.items() if value}
+        if not filters:
+            continue
+        key = tuple(sorted(filters.items()))
+        if key in seen:
+            continue
+        seen.add(key)
+        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", filters, "name")
+        if shipment_name:
+            return frappe.get_doc("Shipment Tracking Shipment", shipment_name)
+
+    if not create:
+        return None
+    return frappe.get_doc({"doctype": "Shipment Tracking Shipment"})
+
+
+def repair_shipment_links(shipment, si=None, encounter=None, order_id: str | None = None) -> bool:
+    changed = False
+
+    if si:
+        if shipment.sales_invoice and shipment.sales_invoice != si.name:
+            frappe.throw(
+                f"Shipment {shipment.name} is already linked to Sales Invoice {shipment.sales_invoice}."
+            )
+        if not shipment.sales_invoice:
+            shipment.sales_invoice = si.name
+            changed = True
+        if getattr(si, "patient", None) and shipment.patient != si.patient:
+            shipment.patient = si.patient
+            changed = True
+        if getattr(si, "customer", None) and shipment.customer != si.customer:
+            shipment.customer = si.customer
+            changed = True
+
+    if encounter and shipment.patient_encounter and shipment.patient_encounter != encounter.name:
+        frappe.throw(
+            f"Shipment {shipment.name} is already linked to Patient Encounter {shipment.patient_encounter}."
+        )
+    if encounter and not shipment.patient_encounter:
+        shipment.patient_encounter = encounter.name
+        changed = True
+    if encounter and getattr(encounter, "patient", None) and shipment.patient != encounter.patient:
+        shipment.patient = encounter.patient
+        changed = True
+
+    if order_id and shipment.shipkia_order_id != order_id:
+        shipment.shipkia_order_id = order_id
+        changed = True
+
+    if changed and not shipment.is_new():
+        shipment.save(ignore_permissions=True)
+        mirror_summary_fields(
+            shipment,
+            sales_invoice=shipment.sales_invoice,
+            encounter_name=shipment.patient_encounter,
+        )
+
+    return changed
+
+
+def create_or_update_shipment_from_order_response(si, encounter, order_id: str, body: dict):
+    shipment = get_or_create_shipment(si=si, encounter=encounter, order_id=order_id)
+    repair_shipment_links(shipment, si=si, encounter=encounter, order_id=order_id)
     shipment.raw_latest_response = safe_json(body)
 
     if shipment.is_new():

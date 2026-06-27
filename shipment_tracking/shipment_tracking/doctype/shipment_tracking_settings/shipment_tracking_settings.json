@@ -147,6 +147,7 @@
    "fieldtype": "Password",
    "label": "Webhook Secret",
    "depends_on": "eval:doc.enable_webhook_security",
+   "mandatory_depends_on": "eval:doc.enable_webhook_security",
    "description": "Secret key for validating incoming webhooks"
   },
   {
@@ -178,7 +179,7 @@
    "fieldtype": "Data",
    "label": "Support Update URL",
    "depends_on": "eval:doc.enable_support_ticket",
-   "description": "Shipkia update support ticket API endpoint"
+   "description": "Reserved for future support ticket update API calls."
   },
   {
    "fieldname": "support_get_url",
@@ -192,7 +193,7 @@
    "fieldtype": "Data",
    "label": "Support List URL",
    "depends_on": "eval:doc.enable_support_ticket",
-   "description": "Shipkia list support tickets API endpoint"
+   "description": "Reserved for future support ticket list API calls."
   }
  ],
  "index_web_pages_for_search": 1,

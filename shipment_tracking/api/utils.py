@@ -25,6 +25,18 @@ def get_settings():
     return frappe.get_single("Shipment Tracking Settings")
 
 
+def validate_webhook_secret(settings=None) -> None:
+    settings = settings or get_settings()
+    if not getattr(settings, "enable_webhook_security", 0):
+        return
+
+    secret = settings.get_password("webhook_secret", raise_exception=False) or ""
+    incoming_secret = frappe.get_request_header("X-Webhook-Secret") or ""
+    if not secret or incoming_secret != secret:
+        frappe.local.response["http_status_code"] = 403
+        frappe.throw("Unauthorized request", frappe.PermissionError)
+
+
 def make_auth_headers(settings) -> dict[str, str]:
     api_key = settings.get_password("api_key", raise_exception=False) or ""
     api_secret = settings.get_password("api_secret", raise_exception=False) or ""
