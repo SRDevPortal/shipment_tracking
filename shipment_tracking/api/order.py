@@ -168,7 +168,7 @@ def build_payload_from_sales_invoice(si, settings) -> dict[str, Any]:
         "total_discount": getattr(si, "discount_amount", 0) or 0,
         "prepaid_amount": max((si.grand_total or 0) - (si.outstanding_amount or 0), 0),
         "notes": si.remarks or "",
-        "tag": f"ERP | SI:{si.name}",
+        "tag": si.name,
     })
 
     return payload
