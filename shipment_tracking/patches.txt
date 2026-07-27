@@ -4,3 +4,6 @@
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
+shipment_tracking.patches.v1_0.add_notification_indexes
+shipment_tracking.patches.v1_0.backfill_normalized_status
+shipment_tracking.patches.v1_0.initialize_whatsapp_notification_settings

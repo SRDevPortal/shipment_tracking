@@ -5,6 +5,8 @@ app_description = "Shipkia shipment sync and tracking for ERPNext."
 app_email = "webdevelopersriaas@gmail.com"
 app_license = "MIT"
 
+required_apps = ["erpnext", "healthcare", "wa_chat_hub"]
+
 after_install = "shipment_tracking.install.after_install"
 after_migrate = "shipment_tracking.install.after_migrate"
 
@@ -25,7 +27,18 @@ has_permission = {
     "Shipment Tracking Support Ticket": "shipment_tracking.api.support.has_support_ticket_permission",
 }
 
+doc_events = {
+    "Sales Invoice": {
+        "on_submit": "shipment_tracking.notifications.on_sales_invoice_submit",
+    },
+}
+
 scheduler_events = {
+    "cron": {
+        "*/5 * * * *": [
+            "shipment_tracking.notifications.retry_failed_notifications",
+        ],
+    },
     "daily": [
         "shipment_tracking.api.support.cleanup_successful_support_update_logs",
     ],

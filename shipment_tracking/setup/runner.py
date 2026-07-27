@@ -17,6 +17,7 @@ def setup_all(skip_reload=False):
                 "shipment_tracking_shipment_event",
                 "shipment_tracking_support_ticket",
                 "shipment_tracking_sync_log",
+                "shipment_whatsapp_notification",
             ]
 
             for dt in doctypes:

@@ -30,7 +30,28 @@
   "support_create_url",
   "support_update_url",
   "support_get_url",
-  "support_list_url"
+  "support_list_url",
+  "whatsapp_notifications_tab",
+  "whatsapp_notification_controls",
+  "enable_whatsapp_notifications",
+  "whatsapp_dry_run",
+  "whatsapp_notification_control_column",
+  "enable_sales_invoice_generated",
+  "enable_order_picked_up",
+  "enable_out_for_delivery",
+  "whatsapp_invoice_template_section",
+  "sales_invoice_generated_template",
+  "sales_invoice_generated_language",
+  "whatsapp_shipment_template_section",
+  "order_picked_up_template",
+  "order_picked_up_language",
+  "whatsapp_shipment_template_column",
+  "out_for_delivery_template",
+  "out_for_delivery_language",
+  "whatsapp_delivery_section",
+  "whatsapp_test_patient",
+  "whatsapp_max_retries",
+  "whatsapp_retry_delay_minutes"
  ],
  "fields": [
   {
@@ -194,6 +215,136 @@
    "label": "Support List URL",
    "depends_on": "eval:doc.enable_support_ticket",
    "description": "Reserved for future support ticket list API calls."
+  },
+  {
+   "fieldname": "whatsapp_notifications_tab",
+   "fieldtype": "Tab Break",
+   "label": "WhatsApp Notifications"
+  },
+  {
+   "fieldname": "whatsapp_notification_controls",
+   "fieldtype": "Section Break",
+   "label": "Notification Controls"
+  },
+  {
+   "default": "0",
+   "description": "Master switch for all automated shipment WhatsApp notifications.",
+   "fieldname": "enable_whatsapp_notifications",
+   "fieldtype": "Check",
+   "label": "Enable WhatsApp Notifications"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.enable_whatsapp_notifications",
+   "description": "Create audit records without calling Interakt.",
+   "fieldname": "whatsapp_dry_run",
+   "fieldtype": "Check",
+   "label": "Dry Run"
+  },
+  {
+   "fieldname": "whatsapp_notification_control_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.enable_whatsapp_notifications",
+   "fieldname": "enable_sales_invoice_generated",
+   "fieldtype": "Check",
+   "label": "Enable Invoice Generated"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.enable_whatsapp_notifications",
+   "fieldname": "enable_order_picked_up",
+   "fieldtype": "Check",
+   "label": "Enable Order Picked Up"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.enable_whatsapp_notifications",
+   "fieldname": "enable_out_for_delivery",
+   "fieldtype": "Check",
+   "label": "Enable Out for Delivery"
+  },
+  {
+   "fieldname": "whatsapp_invoice_template_section",
+   "fieldtype": "Section Break",
+   "label": "Invoice Template"
+  },
+  {
+   "default": "sales_invoice_generated",
+   "depends_on": "eval:doc.enable_sales_invoice_generated",
+   "fieldname": "sales_invoice_generated_template",
+   "fieldtype": "Data",
+   "label": "Invoice Generated Template"
+  },
+  {
+   "default": "en",
+   "depends_on": "eval:doc.enable_sales_invoice_generated",
+   "fieldname": "sales_invoice_generated_language",
+   "fieldtype": "Data",
+   "label": "Invoice Generated Language"
+  },
+  {
+   "fieldname": "whatsapp_shipment_template_section",
+   "fieldtype": "Section Break",
+   "label": "Shipment Templates"
+  },
+  {
+   "default": "order_picked_up",
+   "depends_on": "eval:doc.enable_order_picked_up",
+   "fieldname": "order_picked_up_template",
+   "fieldtype": "Data",
+   "label": "Order Picked Up Template"
+  },
+  {
+   "default": "en",
+   "depends_on": "eval:doc.enable_order_picked_up",
+   "fieldname": "order_picked_up_language",
+   "fieldtype": "Data",
+   "label": "Order Picked Up Language"
+  },
+  {
+   "fieldname": "whatsapp_shipment_template_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "out_for_delivery",
+   "depends_on": "eval:doc.enable_out_for_delivery",
+   "fieldname": "out_for_delivery_template",
+   "fieldtype": "Data",
+   "label": "Out for Delivery Template"
+  },
+  {
+   "default": "en",
+   "depends_on": "eval:doc.enable_out_for_delivery",
+   "fieldname": "out_for_delivery_language",
+   "fieldtype": "Data",
+   "label": "Out for Delivery Language"
+  },
+  {
+   "fieldname": "whatsapp_delivery_section",
+   "fieldtype": "Section Break",
+   "label": "Delivery and Retry"
+  },
+  {
+   "description": "When set, only this Patient can generate notification records.",
+   "fieldname": "whatsapp_test_patient",
+   "fieldtype": "Link",
+   "label": "Pilot Patient",
+   "options": "Patient"
+  },
+  {
+   "default": "3",
+   "fieldname": "whatsapp_max_retries",
+   "fieldtype": "Int",
+   "label": "Maximum Attempts"
+  },
+  {
+   "default": "5",
+   "fieldname": "whatsapp_retry_delay_minutes",
+   "fieldtype": "Int",
+   "label": "Base Retry Delay (Minutes)"
   }
  ],
  "index_web_pages_for_search": 1,

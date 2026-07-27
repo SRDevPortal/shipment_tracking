@@ -30,6 +30,38 @@ class ShipmentTrackingSettings(Document):
                     "Support Get URL is required when Support Ticket is enabled unless a base API URL can be derived."
                 )
 
+        if cint(getattr(self, "enable_whatsapp_notifications", 0)):
+            enabled_events = (
+                "enable_sales_invoice_generated",
+                "enable_order_picked_up",
+                "enable_out_for_delivery",
+            )
+            if not any(cint(getattr(self, fieldname, 0)) for fieldname in enabled_events):
+                frappe.throw("Enable at least one WhatsApp notification event.")
+
+            self.validate_whatsapp_template(
+                "enable_sales_invoice_generated",
+                "sales_invoice_generated_template",
+                "sales_invoice_generated_language",
+                "Invoice Generated",
+            )
+            self.validate_whatsapp_template(
+                "enable_order_picked_up",
+                "order_picked_up_template",
+                "order_picked_up_language",
+                "Order Picked Up",
+            )
+            self.validate_whatsapp_template(
+                "enable_out_for_delivery",
+                "out_for_delivery_template",
+                "out_for_delivery_language",
+                "Out for Delivery",
+            )
+            if cint(getattr(self, "whatsapp_max_retries", 0)) < 1:
+                frappe.throw("Maximum Attempts must be at least 1.")
+            if cint(getattr(self, "whatsapp_retry_delay_minutes", 0)) < 1:
+                frappe.throw("Base Retry Delay must be at least 1 minute.")
+
     def require_value(self, fieldname: str, label: str):
         if not (getattr(self, fieldname, None) or "").strip():
             frappe.throw(f"{label} is required.")
@@ -44,6 +76,18 @@ class ShipmentTrackingSettings(Document):
             if value:
                 return True
         return False
+
+    def validate_whatsapp_template(
+        self,
+        enable_field: str,
+        template_field: str,
+        language_field: str,
+        label: str,
+    ) -> None:
+        if not cint(getattr(self, enable_field, 0)):
+            return
+        self.require_value(template_field, f"{label} Template")
+        self.require_value(language_field, f"{label} Language")
 
     def on_update(self):
         frappe.clear_cache()

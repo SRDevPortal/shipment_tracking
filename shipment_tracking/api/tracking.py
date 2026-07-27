@@ -251,6 +251,9 @@ def apply_tracking_response(shipment, body: dict):
     result = tracking_result(body)
     order_details = result.get("order_details") or {}
     latest = latest_timeline_entry(result)
+    previous_normalized_status = normalize_tracking_status(
+        shipment.normalized_status or shipment.shipkia_status
+    )
 
     shipment.company = result.get("company") or ""
     shipment.company_id = result.get("company_id") or ""
@@ -271,6 +274,10 @@ def apply_tracking_response(shipment, body: dict):
 
     sync_timeline(shipment, result.get("shipment_timeline") or [])
     mirror_summary_fields(shipment, sales_invoice=shipment.sales_invoice, encounter_name=shipment.patient_encounter)
+
+    from shipment_tracking.notifications import notify_shipment_status_transition
+
+    notify_shipment_status_transition(shipment, previous_normalized_status)
 
 
 def sync_timeline(shipment, timeline_rows: list[dict]):

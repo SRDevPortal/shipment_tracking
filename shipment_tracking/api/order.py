@@ -77,7 +77,6 @@ def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
     log.status = "Success"
     log.shipkia_order_id = order_id
     log.save(ignore_permissions=True)
-    frappe.db.commit()
 
     frappe.db.set_value(
         "Sales Invoice",
@@ -88,6 +87,7 @@ def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
         },
         update_modified=False,
     )
+    frappe.db.commit()
 
     return {
         "success": True,

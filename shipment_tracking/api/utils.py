@@ -12,9 +12,11 @@ ACTIVE_SYNC_DEFAULT_LIMIT = 100
 TRACKING_STATUS_MAP = {
     "pickup scheduled": "Pending Pickup",
     "picked up": "Picked Up",
+    "pickup completed": "Picked Up",
     "in transit": "In Transit",
     "reached destination hub": "In Transit",
     "out for delivery": "Out for Delivery",
+    "ofd": "Out for Delivery",
     "delivered": "Delivered",
     "rto": "RTO",
     "cancelled": "Cancelled",
