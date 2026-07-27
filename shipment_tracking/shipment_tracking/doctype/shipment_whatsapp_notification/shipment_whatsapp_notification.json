@@ -15,6 +15,10 @@
   "template_name",
   "language_code",
   "body_values_json",
+  "body_preview",
+  "routing_section",
+  "channel_account",
+  "routing_source",
   "delivery_section",
   "conversation",
   "chat_message",
@@ -79,6 +83,8 @@
   {
    "fieldname": "patient",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "search_index": 1,
    "label": "Patient",
    "options": "Patient",
@@ -117,6 +123,35 @@
    "fieldtype": "Long Text",
    "label": "Body Values JSON",
    "read_only": 1
+  },
+  {
+   "fieldname": "body_preview",
+   "fieldtype": "Long Text",
+   "label": "Rendered Message Preview",
+   "read_only": 1
+  },
+  {
+   "fieldname": "routing_section",
+   "fieldtype": "Section Break",
+   "label": "Routing"
+  },
+  {
+   "fieldname": "channel_account",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Channel Account",
+   "options": "Chat Channel Account",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "routing_source",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Routing Source",
+   "options": "\nExisting Conversation\nDepartment Map\nDefault Pipeline Map\nShipment Settings Fallback",
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "delivery_section",

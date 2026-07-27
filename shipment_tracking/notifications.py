@@ -38,11 +38,13 @@ def on_sales_invoice_submit(doc, method=None) -> None:
     try:
         if doc.docstatus != 1 or not cstr(getattr(doc, "patient", "")).strip():
             return
+        body_values = invoice_template_values(doc)
         create_notification(
             event_type="sales_invoice_generated",
             patient=doc.patient,
             sales_invoice=doc.name,
-            body_values=invoice_template_values(doc),
+            body_values=body_values,
+            body_preview=invoice_template_preview(body_values),
         )
     except Exception:
         frappe.log_error(
@@ -64,13 +66,15 @@ def notify_shipment_status_transition(shipment, previous_status: str | None) -> 
         return None
 
     try:
+        body_values = shipment_template_values(shipment, event_type)
         return create_notification(
             event_type=event_type,
             patient=getattr(shipment, "patient", None),
             sales_invoice=getattr(shipment, "sales_invoice", None),
             shipment=shipment.name,
             shipkia_order_id=getattr(shipment, "shipkia_order_id", None),
-            body_values=shipment_template_values(shipment, event_type),
+            body_values=body_values,
+            body_preview=shipment_template_preview(body_values, event_type),
         )
     except Exception:
         frappe.log_error(
@@ -85,6 +89,7 @@ def create_notification(
     event_type: str,
     patient: str | None,
     body_values: list[str],
+    body_preview: str,
     sales_invoice: str | None = None,
     shipment: str | None = None,
     shipkia_order_id: str | None = None,
@@ -117,6 +122,7 @@ def create_notification(
             "template_name": cstr(getattr(settings, config["template_field"], "")).strip(),
             "language_code": cstr(getattr(settings, config["language_field"], "")).strip(),
             "body_values_json": safe_json(body_values),
+            "body_preview": cstr(body_preview),
             "queued_on": now_datetime(),
             "skip_reason": "Dry run is enabled." if dry_run else None,
         }
@@ -209,7 +215,13 @@ def send_notification(notification_name: str) -> dict[str, Any]:
             template_name=notification.template_name,
             language_code=notification.language_code,
             body_values=frappe.parse_json(notification.body_values_json or "[]"),
+            body_preview=notification.body_preview,
             event_key=notification.event_key,
+            fallback_channel_account=(
+                cstr(getattr(settings, "default_interakt_account", "")).strip()
+                if cint(getattr(settings, "enable_default_interakt_fallback", 0))
+                else None
+            ),
         )
     except Exception as exc:
         mark_failed(notification, settings, exc)
@@ -219,6 +231,8 @@ def send_notification(notification_name: str) -> dict[str, Any]:
     notification.conversation = result.get("conversation")
     notification.chat_message = result.get("message")
     notification.provider_message_id = result.get("provider_message_id")
+    notification.channel_account = result.get("channel_account")
+    notification.routing_source = result.get("routing_source")
     notification.sent_on = now_datetime()
     notification.next_retry_on = None
     notification.last_error = None
@@ -305,6 +319,54 @@ def shipment_template_values(shipment, event_type: str) -> list[str]:
         estimated_delivery = getattr(shipment, "shipkia_estimated_delivery", None)
         values.append(format_datetime(estimated_delivery) if estimated_delivery else "")
     return values
+
+
+def invoice_template_preview(body_values: list[str]) -> str:
+    patient_name, invoice_name, posting_date, amount = body_values
+    return "\n".join(
+        [
+            f"Hello {patient_name},",
+            "",
+            f"Your sales invoice {invoice_name} dated {posting_date} has been generated successfully.",
+            "",
+            f"Invoice Amount: {amount}",
+            "",
+            "Thank you for choosing us.",
+        ]
+    )
+
+
+def shipment_template_preview(body_values: list[str], event_type: str) -> str:
+    if event_type == "order_picked_up":
+        patient_name, order_id, awb_number, delivery_partner, estimated_delivery = body_values
+        return "\n".join(
+            [
+                f"Hello {patient_name},",
+                "",
+                f"Your order {order_id} has been picked up and is on its way.",
+                "",
+                f"AWB Number: {awb_number}",
+                f"Delivery Partner: {delivery_partner}",
+                f"Estimated Delivery: {estimated_delivery}",
+                "",
+                "We will notify you when it is out for delivery.",
+            ]
+        )
+    if event_type == "out_for_delivery":
+        patient_name, order_id, awb_number, delivery_partner = body_values
+        return "\n".join(
+            [
+                f"Hello {patient_name},",
+                "",
+                f"Your order {order_id} is out for delivery.",
+                "",
+                f"AWB Number: {awb_number}",
+                f"Delivery Partner: {delivery_partner}",
+                "",
+                "Please keep your phone available for the delivery agent.",
+            ]
+        )
+    raise ValueError(f"Unsupported shipment notification event: {event_type}")
 
 
 def patient_display_name(patient: str | None) -> str:

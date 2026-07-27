@@ -61,6 +61,7 @@ class ShipmentTrackingSettings(Document):
                 frappe.throw("Maximum Attempts must be at least 1.")
             if cint(getattr(self, "whatsapp_retry_delay_minutes", 0)) < 1:
                 frappe.throw("Base Retry Delay must be at least 1 minute.")
+            self.validate_default_interakt_account()
 
     def require_value(self, fieldname: str, label: str):
         if not (getattr(self, fieldname, None) or "").strip():
@@ -88,6 +89,18 @@ class ShipmentTrackingSettings(Document):
             return
         self.require_value(template_field, f"{label} Template")
         self.require_value(language_field, f"{label} Language")
+
+    def validate_default_interakt_account(self) -> None:
+        if not cint(getattr(self, "enable_default_interakt_fallback", 0)):
+            return
+        self.require_value("default_interakt_account", "Default Interakt Account")
+        account = frappe.get_doc("Chat Channel Account", self.default_interakt_account)
+        if not cint(account.is_active):
+            frappe.throw("Default Interakt Account must be active.")
+        if account.channel_type != "Interakt":
+            frappe.throw("Default Interakt Account must use the Interakt channel type.")
+        if not (account.get_password("interakt_api_key", raise_exception=False) or "").strip():
+            frappe.throw("Default Interakt Account must have an Interakt API Key.")
 
     def on_update(self):
         frappe.clear_cache()

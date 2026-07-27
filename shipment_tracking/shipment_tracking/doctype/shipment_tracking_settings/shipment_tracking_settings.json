@@ -33,23 +33,31 @@
   "support_list_url",
   "whatsapp_notifications_tab",
   "whatsapp_notification_controls",
+  "whatsapp_notification_intro",
   "enable_whatsapp_notifications",
-  "whatsapp_dry_run",
   "whatsapp_notification_control_column",
-  "enable_sales_invoice_generated",
-  "enable_order_picked_up",
-  "enable_out_for_delivery",
+  "whatsapp_dry_run",
   "whatsapp_invoice_template_section",
+  "enable_sales_invoice_generated",
   "sales_invoice_generated_template",
+  "whatsapp_invoice_template_column",
   "sales_invoice_generated_language",
   "whatsapp_shipment_template_section",
+  "enable_order_picked_up",
   "order_picked_up_template",
-  "order_picked_up_language",
   "whatsapp_shipment_template_column",
+  "order_picked_up_language",
+  "whatsapp_out_for_delivery_section",
+  "enable_out_for_delivery",
   "out_for_delivery_template",
+  "whatsapp_out_for_delivery_column",
   "out_for_delivery_language",
+  "whatsapp_fallback_section",
+  "enable_default_interakt_fallback",
+  "default_interakt_account",
   "whatsapp_delivery_section",
   "whatsapp_test_patient",
+  "whatsapp_delivery_column",
   "whatsapp_max_retries",
   "whatsapp_retry_delay_minutes"
  ],
@@ -224,22 +232,27 @@
   {
    "fieldname": "whatsapp_notification_controls",
    "fieldtype": "Section Break",
-   "label": "Notification Controls"
+   "label": "Notification Setup"
+  },
+  {
+   "fieldname": "whatsapp_notification_intro",
+   "fieldtype": "HTML",
+   "options": "<div class=\"alert alert-info\">Messages use approved Interakt templates. Routing checks an existing Patient conversation first, then department/default pipeline maps, and finally the optional fallback account.</div>"
   },
   {
    "default": "0",
-   "description": "Master switch for all automated shipment WhatsApp notifications.",
+   "description": "Master switch for the three automated patient notifications configured below.",
    "fieldname": "enable_whatsapp_notifications",
    "fieldtype": "Check",
-   "label": "Enable WhatsApp Notifications"
+   "label": "Enable Automated WhatsApp Notifications"
   },
   {
    "default": "1",
    "depends_on": "eval:doc.enable_whatsapp_notifications",
-   "description": "Create audit records without calling Interakt.",
+   "description": "Recommended during setup. Creates notification audit records without sending messages to Interakt.",
    "fieldname": "whatsapp_dry_run",
    "fieldtype": "Check",
-   "label": "Dry Run"
+   "label": "Dry Run (Do Not Send)"
   },
   {
    "fieldname": "whatsapp_notification_control_column",
@@ -248,13 +261,15 @@
   {
    "default": "0",
    "depends_on": "eval:doc.enable_whatsapp_notifications",
+   "description": "Send when a Sales Invoice is submitted.",
    "fieldname": "enable_sales_invoice_generated",
    "fieldtype": "Check",
-   "label": "Enable Invoice Generated"
+   "label": "Enable Sales Invoice Generated"
   },
   {
    "default": "0",
    "depends_on": "eval:doc.enable_whatsapp_notifications",
+   "description": "Send when Shipkia reports that the shipment was picked up.",
    "fieldname": "enable_order_picked_up",
    "fieldtype": "Check",
    "label": "Enable Order Picked Up"
@@ -262,86 +277,145 @@
   {
    "default": "0",
    "depends_on": "eval:doc.enable_whatsapp_notifications",
+   "description": "Send when Shipkia reports that the shipment is out for delivery.",
    "fieldname": "enable_out_for_delivery",
    "fieldtype": "Check",
    "label": "Enable Out for Delivery"
   },
   {
+   "fieldname": "whatsapp_fallback_section",
+   "fieldtype": "Section Break",
+   "label": "Account Routing",
+   "depends_on": "eval:doc.enable_whatsapp_notifications"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.enable_whatsapp_notifications",
+   "description": "Use the selected Interakt account only when normal Patient routing cannot resolve an account.",
+   "fieldname": "enable_default_interakt_fallback",
+   "fieldtype": "Check",
+   "label": "Enable Default Interakt Fallback"
+  },
+  {
+   "depends_on": "eval:doc.enable_whatsapp_notifications && doc.enable_default_interakt_fallback",
+   "description": "Final fallback only. Existing conversations and Patient department mappings take precedence.",
+   "fieldname": "default_interakt_account",
+   "fieldtype": "Link",
+   "label": "Default Interakt Account",
+   "mandatory_depends_on": "eval:doc.enable_whatsapp_notifications && doc.enable_default_interakt_fallback",
+   "options": "Chat Channel Account"
+  },
+  {
    "fieldname": "whatsapp_invoice_template_section",
    "fieldtype": "Section Break",
-   "label": "Invoice Template"
+   "label": "1. Sales Invoice Generated",
+   "depends_on": "eval:doc.enable_whatsapp_notifications"
   },
   {
    "default": "sales_invoice_generated",
    "depends_on": "eval:doc.enable_sales_invoice_generated",
+   "description": "Approved template name in Interakt.",
    "fieldname": "sales_invoice_generated_template",
    "fieldtype": "Data",
-   "label": "Invoice Generated Template"
+   "label": "Interakt Template Name",
+   "mandatory_depends_on": "eval:doc.enable_sales_invoice_generated"
+  },
+  {
+   "fieldname": "whatsapp_invoice_template_column",
+   "fieldtype": "Column Break"
   },
   {
    "default": "en",
    "depends_on": "eval:doc.enable_sales_invoice_generated",
+   "description": "Interakt template language code, for example en.",
    "fieldname": "sales_invoice_generated_language",
    "fieldtype": "Data",
-   "label": "Invoice Generated Language"
+   "label": "Language Code",
+   "mandatory_depends_on": "eval:doc.enable_sales_invoice_generated"
   },
   {
    "fieldname": "whatsapp_shipment_template_section",
    "fieldtype": "Section Break",
-   "label": "Shipment Templates"
+   "label": "2. Order Picked Up",
+   "depends_on": "eval:doc.enable_whatsapp_notifications"
   },
   {
    "default": "order_picked_up",
    "depends_on": "eval:doc.enable_order_picked_up",
+   "description": "Approved template name in Interakt.",
    "fieldname": "order_picked_up_template",
    "fieldtype": "Data",
-   "label": "Order Picked Up Template"
+   "label": "Interakt Template Name",
+   "mandatory_depends_on": "eval:doc.enable_order_picked_up"
   },
   {
    "default": "en",
    "depends_on": "eval:doc.enable_order_picked_up",
+   "description": "Interakt template language code, for example en.",
    "fieldname": "order_picked_up_language",
    "fieldtype": "Data",
-   "label": "Order Picked Up Language"
+   "label": "Language Code",
+   "mandatory_depends_on": "eval:doc.enable_order_picked_up"
   },
   {
    "fieldname": "whatsapp_shipment_template_column",
    "fieldtype": "Column Break"
   },
   {
+   "fieldname": "whatsapp_out_for_delivery_section",
+   "fieldtype": "Section Break",
+   "label": "3. Out for Delivery",
+   "depends_on": "eval:doc.enable_whatsapp_notifications"
+  },
+  {
    "default": "out_for_delivery",
    "depends_on": "eval:doc.enable_out_for_delivery",
+   "description": "Approved template name in Interakt.",
    "fieldname": "out_for_delivery_template",
    "fieldtype": "Data",
-   "label": "Out for Delivery Template"
+   "label": "Interakt Template Name",
+   "mandatory_depends_on": "eval:doc.enable_out_for_delivery"
+  },
+  {
+   "fieldname": "whatsapp_out_for_delivery_column",
+   "fieldtype": "Column Break"
   },
   {
    "default": "en",
    "depends_on": "eval:doc.enable_out_for_delivery",
+   "description": "Interakt template language code, for example en.",
    "fieldname": "out_for_delivery_language",
    "fieldtype": "Data",
-   "label": "Out for Delivery Language"
+   "label": "Language Code",
+   "mandatory_depends_on": "eval:doc.enable_out_for_delivery"
   },
   {
    "fieldname": "whatsapp_delivery_section",
    "fieldtype": "Section Break",
-   "label": "Delivery and Retry"
+   "label": "Rollout and Retry",
+   "depends_on": "eval:doc.enable_whatsapp_notifications"
   },
   {
-   "description": "When set, only this Patient can generate notification records.",
+   "description": "Optional safety filter. When selected, only this Patient can generate notification records; leave blank for all Patients.",
    "fieldname": "whatsapp_test_patient",
    "fieldtype": "Link",
    "label": "Pilot Patient",
    "options": "Patient"
   },
   {
+   "fieldname": "whatsapp_delivery_column",
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "3",
+   "description": "Total send attempts before the notification is marked Failed.",
    "fieldname": "whatsapp_max_retries",
    "fieldtype": "Int",
    "label": "Maximum Attempts"
   },
   {
    "default": "5",
+   "description": "Minutes before retrying a failed Interakt request.",
    "fieldname": "whatsapp_retry_delay_minutes",
    "fieldtype": "Int",
    "label": "Base Retry Delay (Minutes)"

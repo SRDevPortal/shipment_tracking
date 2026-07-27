@@ -6,8 +6,10 @@ from frappe.tests.utils import FrappeTestCase
 
 from shipment_tracking.notifications import (
     build_event_key,
+    invoice_template_preview,
     is_event_enabled,
     notify_shipment_status_transition,
+    shipment_template_preview,
 )
 
 
@@ -61,6 +63,39 @@ class TestShipmentNotifications(FrappeTestCase):
         )
         self.assertTrue(is_event_enabled(settings, "order_picked_up", patient="PAT-0001"))
         self.assertFalse(is_event_enabled(settings, "order_picked_up", patient="PAT-0002"))
+
+    def test_invoice_template_preview_matches_approved_template(self):
+        preview = invoice_template_preview(
+            ["Jitendra Kumar", "SRI-26-000003", "27-07-2026", "INR 2160.00"]
+        )
+
+        self.assertIn("Hello Jitendra Kumar,", preview)
+        self.assertIn(
+            "Your sales invoice SRI-26-000003 dated 27-07-2026 has been generated successfully.",
+            preview,
+        )
+        self.assertIn("Invoice Amount: INR 2160.00", preview)
+
+    def test_shipment_template_previews_match_approved_templates(self):
+        picked_up = shipment_template_preview(
+            [
+                "Jitendra Kumar",
+                "ORD-10001",
+                "AWB-10001",
+                "Delhivery",
+                "30-07-2026 23:59:59",
+            ],
+            "order_picked_up",
+        )
+        out_for_delivery = shipment_template_preview(
+            ["Jitendra Kumar", "ORD-10001", "AWB-10001", "Delhivery"],
+            "out_for_delivery",
+        )
+
+        self.assertIn("Your order ORD-10001 has been picked up", picked_up)
+        self.assertIn("Estimated Delivery: 30-07-2026 23:59:59", picked_up)
+        self.assertIn("Your order ORD-10001 is out for delivery.", out_for_delivery)
+        self.assertIn("Please keep your phone available", out_for_delivery)
 
     @patch("shipment_tracking.notifications.create_notification")
     def test_picked_up_transition_emits_matching_event(self, create_notification):

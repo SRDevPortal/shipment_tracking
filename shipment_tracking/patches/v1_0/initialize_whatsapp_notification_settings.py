@@ -9,6 +9,7 @@ DEFAULTS = {
     "enable_sales_invoice_generated": 0,
     "enable_order_picked_up": 0,
     "enable_out_for_delivery": 0,
+    "enable_default_interakt_fallback": 0,
     "sales_invoice_generated_template": "sales_invoice_generated",
     "sales_invoice_generated_language": "en",
     "order_picked_up_template": "order_picked_up",
