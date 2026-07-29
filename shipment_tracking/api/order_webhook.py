@@ -3,8 +3,7 @@ from __future__ import annotations
 import frappe
 from frappe.utils import get_datetime
 
-from .utils import validate_webhook_secret
-from .utils import normalize_tracking_status
+from .utils import normalize_tracking_status, validate_webhook_secret
 from .tracking import get_linked_encounter, get_or_create_shipment, mirror_summary_fields, repair_shipment_links
 
 
@@ -74,9 +73,6 @@ def order_status_update():
 
     shipment = get_or_create_shipment(si=si, encounter=encounter, order_id=order_id)
     repair_shipment_links(shipment, si=si, encounter=encounter, order_id=order_id)
-    previous_normalized_status = normalize_tracking_status(
-        shipment.normalized_status or shipment.shipkia_status
-    )
 
     # -----------------------------
     # CLEAN DATA
@@ -143,9 +139,6 @@ def order_status_update():
         encounter_name=shipment.patient_encounter,
     )
 
-    from shipment_tracking.notifications import notify_shipment_status_transition
-
-    notify_shipment_status_transition(shipment, previous_normalized_status)
     frappe.db.commit()
 
     return {
