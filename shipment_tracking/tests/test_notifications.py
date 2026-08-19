@@ -11,6 +11,9 @@ from shipment_tracking.notifications import (
     notify_shipment_status_transition,
     shipment_template_preview,
 )
+from shipment_tracking.shipment_tracking.doctype.shipment_tracking_settings.shipment_tracking_settings import (
+    ShipmentTrackingSettings,
+)
 
 
 class TestShipmentNotifications(FrappeTestCase):
@@ -54,6 +57,22 @@ class TestShipmentNotifications(FrappeTestCase):
         self.assertTrue(is_event_enabled(settings, "sales_invoice_generated", patient="PAT-0001"))
         self.assertFalse(is_event_enabled(settings, "order_picked_up", patient="PAT-0001"))
         self.assertTrue(is_event_enabled(settings, "out_for_delivery", patient="PAT-0001"))
+
+    def test_patient_notification_hub_engine_disables_legacy_events(self):
+        settings = frappe._dict(
+            whatsapp_notification_engine="Patient Notification Hub",
+            enable_whatsapp_notifications=1,
+            enable_sales_invoice_generated=1,
+        )
+
+        self.assertFalse(is_event_enabled(settings, "sales_invoice_generated", patient="PAT-0001"))
+
+    @patch("shipment_tracking.shipment_tracking.doctype.shipment_tracking_settings.shipment_tracking_settings.frappe.get_installed_apps", return_value=[])
+    def test_hub_engine_requires_installed_hub(self, get_installed_apps):
+        settings = SimpleNamespace()
+
+        with self.assertRaises(frappe.ValidationError):
+            ShipmentTrackingSettings.validate_patient_notification_hub(settings)
 
     def test_pilot_patient_restricts_events(self):
         settings = frappe._dict(

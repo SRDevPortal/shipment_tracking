@@ -159,6 +159,9 @@ def build_event_key(
 
 def is_event_enabled(settings, event_type: str, patient: str | None = None) -> bool:
     config = EVENT_CONFIG.get(event_type)
+    engine = cstr(getattr(settings, "whatsapp_notification_engine", "")).strip()
+    if engine and engine != "Legacy Shipment Tracking":
+        return False
     if not config or not cint(getattr(settings, "enable_whatsapp_notifications", 0)):
         return False
     if not cint(getattr(settings, config["enable_field"], 0)):
@@ -274,6 +277,9 @@ def mark_failed(notification, settings, error: Exception) -> None:
 
 def retry_failed_notifications() -> None:
     settings = frappe.get_cached_doc("Shipment Tracking Settings")
+    engine = cstr(getattr(settings, "whatsapp_notification_engine", "")).strip()
+    if engine and engine != "Legacy Shipment Tracking":
+        return
     if not cint(getattr(settings, "enable_whatsapp_notifications", 0)):
         return
     if cint(getattr(settings, "whatsapp_dry_run", 0)):

@@ -17,6 +17,17 @@ It enables ERPNext users to automatically create, sync, and monitor shipment rec
 - Automatically display shipment fields only for **online encounters**
 - Maintain real-time shipment visibility inside **ERPNext**
 
+## WhatsApp notification engine
+
+Shipment Tracking Settings provides an explicit choice between:
+
+- `Legacy Shipment Tracking`
+- `Patient Notification Hub`
+
+Existing sites default to the legacy engine. Before switching, enable Patient Notification Hub and review
+its Sales Invoice Generated, Order Picked Up, and Out for Delivery rules. Once the hub is selected, legacy
+notification creation and retry jobs stop; existing legacy audit records remain available for history.
+
 ---
 
 ## Requirements

@@ -34,6 +34,8 @@
   "whatsapp_notifications_tab",
   "whatsapp_notification_controls",
   "whatsapp_notification_intro",
+  "whatsapp_notification_engine",
+  "patient_notification_hub_status",
   "enable_whatsapp_notifications",
   "whatsapp_notification_control_column",
   "whatsapp_dry_run",
@@ -240,8 +242,24 @@
    "options": "<div class=\"alert alert-info\">Messages use approved Interakt templates. Routing checks an existing Patient conversation first, then department/default pipeline maps, and finally the optional fallback account.</div>"
   },
   {
+   "default": "Legacy Shipment Tracking",
+   "description": "Choose exactly one owner for automated shipment notifications. Existing sites remain on the legacy engine until explicitly switched.",
+   "fieldname": "whatsapp_notification_engine",
+   "fieldtype": "Select",
+   "label": "WhatsApp Notification Engine",
+   "options": "Legacy Shipment Tracking\nPatient Notification Hub",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.whatsapp_notification_engine=='Patient Notification Hub'",
+   "fieldname": "patient_notification_hub_status",
+   "fieldtype": "HTML",
+   "options": "<div class=\"alert alert-warning\">Patient Notification Hub owns these events. Legacy creation and retry jobs are disabled; manage rules and delivery from the Hub workspace.</div>"
+  },
+  {
    "default": "0",
-   "description": "Master switch for the three automated patient notifications configured below.",
+   "depends_on": "eval:doc.whatsapp_notification_engine=='Legacy Shipment Tracking'",
+   "description": "Master switch for the three legacy automated patient notifications configured below.",
    "fieldname": "enable_whatsapp_notifications",
    "fieldtype": "Check",
    "label": "Enable Automated WhatsApp Notifications"

@@ -5,6 +5,9 @@ from frappe.utils import cint
 
 class ShipmentTrackingSettings(Document):
     def validate(self):
+        self.whatsapp_notification_engine = (
+            getattr(self, "whatsapp_notification_engine", None) or "Legacy Shipment Tracking"
+        )
         if cint(self.enabled):
             self.require_value("create_order_url", "Create Order URL")
             self.require_value("pickup_address", "Pickup Address")
@@ -30,7 +33,13 @@ class ShipmentTrackingSettings(Document):
                     "Support Get URL is required when Support Ticket is enabled unless a base API URL can be derived."
                 )
 
-        if cint(getattr(self, "enable_whatsapp_notifications", 0)):
+        if self.whatsapp_notification_engine == "Patient Notification Hub":
+            self.validate_patient_notification_hub()
+
+        if (
+            self.whatsapp_notification_engine == "Legacy Shipment Tracking"
+            and cint(getattr(self, "enable_whatsapp_notifications", 0))
+        ):
             enabled_events = (
                 "enable_sales_invoice_generated",
                 "enable_order_picked_up",
@@ -101,6 +110,32 @@ class ShipmentTrackingSettings(Document):
             frappe.throw("Default Interakt Account must use the Interakt channel type.")
         if not (account.get_password("interakt_api_key", raise_exception=False) or "").strip():
             frappe.throw("Default Interakt Account must have an Interakt API Key.")
+
+    def validate_patient_notification_hub(self) -> None:
+        if "patient_notification_hub" not in frappe.get_installed_apps():
+            frappe.throw("Install Patient Notification Hub before selecting it as the notification engine.")
+        if not frappe.db.exists("DocType", "Patient Notification Settings"):
+            frappe.throw("Patient Notification Hub settings are not available. Run bench migrate and try again.")
+        if not cint(frappe.db.get_single_value("Patient Notification Settings", "enabled")):
+            frappe.throw("Enable Patient Notification Hub before switching the notification engine.")
+        required_rules = {"sales_invoice_generated", "order_picked_up", "out_for_delivery"}
+        enabled_rules = {
+            row.rule_key
+            for row in frappe.get_all(
+                "Patient Notification Rule",
+                filters={"rule_key": ["in", sorted(required_rules)], "enabled": 1},
+                fields=["rule_key"],
+                limit_start=0,
+                limit_page_length=len(required_rules),
+            )
+        }
+        missing = sorted(required_rules - enabled_rules)
+        if missing:
+            frappe.msgprint(
+                "Patient Notification Hub is selected, but these rules are disabled: " + ", ".join(missing),
+                indicator="orange",
+                alert=True,
+            )
 
     def on_update(self):
         frappe.clear_cache()
