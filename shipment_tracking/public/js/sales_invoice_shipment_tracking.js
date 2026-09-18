@@ -162,6 +162,13 @@ function render_existing_sales_invoice_support_panel(frm, wrapper) {
 
 function render_support_panel(config) {
     const { frm, wrapper, state, refreshTicket } = config;
+    if (state.details_restricted) {
+        wrapper.html(`<div class="shipment-support-panel privacy-support-summary">
+            <div class="text-muted small">${__("Shipment support")}</div>
+            <div>${__("Reply details are hidden by your privacy permissions.")}</div>
+        </div>`);
+        return;
+    }
     const readOnly = Boolean(config.readOnly || state.read_only);
     const latestTicket = state.latest_ticket || refreshTicket || "";
     const hubDisabled = Boolean(state.hub_address_disabled);

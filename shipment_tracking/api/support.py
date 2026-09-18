@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import frappe
+from .privacy import support_summary, restricted_support, linked_support_summary
 import requests
 from frappe.utils import cint, cstr
 from frappe.utils.data import add_to_date, get_datetime, now_datetime
@@ -157,14 +158,14 @@ def refresh_support_ticket(ticket_name: str):
         body = safe_response_json(response)
     except Exception:
         fail_log(log, frappe.get_traceback())
-        raise
+        frappe.throw("Unable to reach shipping support. Please retry later.")
 
     log.http_status = response.status_code
     log.response_json = safe_json(body)
 
     if response.status_code not in (200, 201, 202):
         fail_log(log, safe_json(body))
-        frappe.throw(f"Shipkia support ticket refresh failed: {support_error(body)}")
+        frappe.throw("Shipping support request failed. Ask an authorized administrator to review the log.")
 
     apply_support_response(ticket, body)
     log.status = "Success"
@@ -239,19 +240,19 @@ def create_support_ticket(reference, issue_type: str, message: str):
         body = safe_response_json(response)
     except Exception:
         fail_log(log, frappe.get_traceback())
-        raise
+        frappe.throw("Unable to reach shipping support. Please retry later.")
 
     log.http_status = response.status_code
     log.response_json = safe_json(body)
 
     if response.status_code not in (200, 201, 202):
         fail_log(log, safe_json(body))
-        frappe.throw(f"Shipkia support ticket failed: {support_error(body)}")
+        frappe.throw("Shipping support request failed. Ask an authorized administrator to review the log.")
 
     data = support_data(body)
     if not data.get("id"):
         fail_log(log, "Missing ticket id in Shipkia support response.")
-        frappe.throw(f"Shipkia support ticket failed: {safe_json(body)}")
+        frappe.throw("Shipping support request failed. Ask an authorized administrator to review the log.")
 
     ticket = upsert_local_ticket(reference, issue_type, message, body)
     add_support_response_comment(reference, ticket, "created")
@@ -353,7 +354,7 @@ def get_support_state(reference) -> dict[str, Any]:
     latest_ticket = latest_visible_ticket(order_id)
     cooldown = get_hub_address_cooldown(order_id)
 
-    return {
+    return support_summary({
         "success": True,
         "order_id": order_id,
         "latest_ticket": latest_ticket.name if latest_ticket else "",
@@ -366,14 +367,16 @@ def get_support_state(reference) -> dict[str, Any]:
         "hub_address_disabled": bool(cooldown),
         "hub_address_disabled_until": cooldown.get("disabled_until") if cooldown else None,
         "hub_address_disabled_message": cooldown.get("message") if cooldown else "",
-    }
+    })
 
 
 def get_existing_support_state(reference, latest_ticket_name: str | None = None) -> dict[str, Any]:
+    if restricted_support():
+        return linked_support_summary(reference, latest_ticket_name)
     order_id = get_reference_order_id(reference)
     latest_ticket = existing_visible_ticket(order_id, latest_ticket_name)
 
-    return {
+    return support_summary({
         "success": True,
         "read_only": True,
         "has_existing_ticket": bool(latest_ticket),
@@ -385,7 +388,7 @@ def get_existing_support_state(reference, latest_ticket_name: str | None = None)
         "latest_response": latest_ticket.latest_response if latest_ticket else "",
         "responses": support_response_entries(latest_ticket) if latest_ticket else [],
         "latest_requested_on": latest_ticket.creation if latest_ticket else None,
-    }
+    })
 
 
 def existing_visible_ticket(order_id: str, latest_ticket_name: str | None = None):
@@ -913,7 +916,7 @@ def add_support_response_comment(reference, ticket, action: str):
 
 
 def support_return_payload(ticket, body: dict[str, Any], message: str) -> dict[str, Any]:
-    return {
+    return support_summary({
         "success": True,
         "message": message,
         "ticket": ticket.name,
@@ -926,7 +929,7 @@ def support_return_payload(ticket, body: dict[str, Any], message: str) -> dict[s
         "responses": support_response_entries(ticket),
         "latest_requested_on": ticket.creation,
         "raw_response": body,
-    }
+    })
 
 
 def support_webhook_return_payload(ticket, message: str) -> dict[str, Any]:

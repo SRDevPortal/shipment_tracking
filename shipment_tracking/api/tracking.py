@@ -28,29 +28,34 @@ def get_tracking_ui_settings():
     }
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def sync_tracking_for_shipment(shipment_name: str):
     shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
-    if not shipment.shipkia_order_id:
-        frappe.throw("Shipment has no Shipkia Order ID.")
-    return sync_tracking_by_order_id(shipment.shipkia_order_id)
-
-
-@frappe.whitelist()
-def sync_tracking_for_invoice(invoice_name: str):
+    shipment.check_permission("read")
+    shipment.check_permission("write")
     validate_manual_tracking_refresh_enabled()
+    return _sync_tracking(shipment)
+
+
+@frappe.whitelist(methods=["POST"])
+def sync_tracking_for_invoice(invoice_name: str):
     invoice = frappe.get_doc("Sales Invoice", invoice_name)
+    invoice.check_permission("read")
+    invoice.check_permission("write")
+    validate_manual_tracking_refresh_enabled()
     shipment = get_or_create_shipment(si=invoice, order_id=getattr(invoice, "si_shipkia_order_id", None), create=False)
     if not shipment:
         frappe.throw("No shipment record linked to this Sales Invoice.")
     repair_shipment_links(shipment, si=invoice, order_id=getattr(invoice, "si_shipkia_order_id", None))
-    return sync_tracking_for_shipment(shipment.name)
+    return _sync_tracking(shipment)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def sync_tracking_for_encounter(encounter_name: str):
-    validate_manual_tracking_refresh_enabled()
     encounter = frappe.get_doc("Patient Encounter", encounter_name)
+    encounter.check_permission("read")
+    encounter.check_permission("write")
+    validate_manual_tracking_refresh_enabled()
     shipment = get_or_create_shipment(
         encounter=encounter,
         order_id=getattr(encounter, "pe_shipkia_order_id", None),
@@ -59,7 +64,7 @@ def sync_tracking_for_encounter(encounter_name: str):
     if not shipment:
         frappe.throw("No shipment record linked to this Patient Encounter.")
     repair_shipment_links(shipment, encounter=encounter, order_id=getattr(encounter, "pe_shipkia_order_id", None))
-    return sync_tracking_for_shipment(shipment.name)
+    return _sync_tracking(shipment)
 
 
 def validate_manual_tracking_refresh_enabled():
@@ -68,13 +73,23 @@ def validate_manual_tracking_refresh_enabled():
         frappe.throw("Manual shipment status refresh is disabled in Shipment Tracking Settings.")
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def sync_tracking_by_order_id(order_id: str):
     shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"shipkia_order_id": order_id}, "name")
     if not shipment_name:
         frappe.throw("No shipment record found for this Shipkia Order ID.")
 
     shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
+    shipment.check_permission("read")
+    shipment.check_permission("write")
+    validate_manual_tracking_refresh_enabled()
+    return _sync_tracking(shipment)
+
+
+def _sync_tracking(shipment):
+    """Internal provider operation; RPC callers authorize their source first."""
+    if not shipment.shipkia_order_id:
+        frappe.throw("Shipment has no Shipkia Order ID.")
     settings = get_settings()
     if not settings.enabled:
         frappe.throw("Shipment Tracking is disabled in settings.")
@@ -106,7 +121,7 @@ def sync_tracking_by_order_id(order_id: str):
         log.error_message = str(frappe.get_traceback())
         log.save(ignore_permissions=True)
         frappe.db.commit()
-        raise
+        frappe.throw("Unable to reach the shipping service. Please retry later.")
 
     log.http_status = response.status_code
     log.response_json = safe_json(body)
@@ -374,6 +389,6 @@ def sync_active_shipments():
     )
     for name in names:
         try:
-            sync_tracking_for_shipment(name)
+            _sync_tracking(frappe.get_doc("Shipment Tracking Shipment", name))
         except Exception:
             frappe.log_error(frappe.get_traceback(), f"Shipment Tracking auto-sync failed for {name}")

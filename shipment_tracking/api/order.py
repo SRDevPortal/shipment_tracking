@@ -13,9 +13,11 @@ from .tracking import create_or_update_shipment_from_order_response, get_linked_
 SHIPKIA_SAFE_TEXT_RE = re.compile(r"[^A-Za-z0-9\s,./\-#()']+")
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
     si = frappe.get_doc("Sales Invoice", invoice_name)
+    si.check_permission("read")
+    si.check_permission("write")
 
     if si.docstatus != 1:
         frappe.throw("Sales Invoice must be submitted before sending to Shipkia.")
@@ -50,7 +52,7 @@ def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
         log.error_message = str(frappe.get_traceback())
         log.save(ignore_permissions=True)
         frappe.db.commit()
-        raise
+        frappe.throw("Unable to reach the shipping service. Please retry later.")
 
     log.http_status = response.status_code
     log.response_json = safe_json(body)
@@ -60,7 +62,7 @@ def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
         log.error_message = safe_json(body)
         log.save(ignore_permissions=True)
         frappe.db.commit()
-        frappe.throw(f"Shipkia Error: {safe_json(body)}")
+        frappe.throw("Shipkia order request failed. Ask an authorized administrator to review the sync log.")
 
     order_id = first_order_id(body)
 
@@ -69,7 +71,7 @@ def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
         log.error_message = "Missing order id in response"
         log.save(ignore_permissions=True)
         frappe.db.commit()
-        frappe.throw(f"Shipkia Error: {safe_json(body)}")
+        frappe.throw("Shipkia order request failed. Ask an authorized administrator to review the sync log.")
 
     encounter = get_linked_encounter(si)
     shipment = create_or_update_shipment_from_order_response(si, encounter, order_id, body)
