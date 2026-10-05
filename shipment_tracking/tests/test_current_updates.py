@@ -102,7 +102,12 @@ class TestCurrentShipmentUpdates(FrappeTestCase):
         get_linked_encounter,
         create_shipment,
     ):
-        invoice = SimpleNamespace(name="SINV-TEST", docstatus=1, si_shipkia_order_id=None)
+        invoice = SimpleNamespace(
+            name="SINV-TEST",
+            docstatus=1,
+            si_shipkia_order_id=None,
+            check_permission=lambda permission: None,
+        )
         get_doc.return_value = invoice
         get_settings.return_value = SimpleNamespace(
             enabled=1,

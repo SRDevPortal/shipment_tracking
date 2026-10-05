@@ -13,6 +13,21 @@ from .tracking import create_or_update_shipment_from_order_response, get_linked_
 SHIPKIA_SAFE_TEXT_RE = re.compile(r"[^A-Za-z0-9\s,./\-#()']+")
 
 
+def mask_phone_for_log(value: str | None) -> str:
+    digits = "".join(character for character in cstr(value or "") if character.isdigit())
+    if not digits:
+        return ""
+    return "*" * max(len(digits) - 4, 0) + digits[-4:]
+
+
+def redact_order_payload_for_log(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload or {})
+    for fieldname in ("delivery_phone_number", "billing_phone_number"):
+        if fieldname in result:
+            result[fieldname] = mask_phone_for_log(result[fieldname])
+    return result
+
+
 @frappe.whitelist(methods=["POST"])
 def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
     si = frappe.get_doc("Sales Invoice", invoice_name)
@@ -110,10 +125,7 @@ def build_payload_from_sales_invoice(si, settings) -> dict[str, Any]:
     billing_same_as_delivery = bool(shipping.name == billing.name)
 
     mobile = get_contact_mobile(si)
-    frappe.logger().info(f"RAW MOBILE: {mobile}")
-
     normalized_mobile = normalize_phone(mobile)
-    frappe.logger().info(f"FINAL MOBILE: {normalized_mobile}")
 
     products = []
 
@@ -277,7 +289,7 @@ def make_sync_log(direction: str, action: str, reference_doctype: str, reference
         "action": action,
         "reference_doctype": reference_doctype,
         "reference_name": reference_name,
-        "request_json": safe_json(request_json),
+        "request_json": safe_json(redact_order_payload_for_log(request_json)),
         "status": "Running",
     }).insert(ignore_permissions=True)
 

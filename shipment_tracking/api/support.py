@@ -61,7 +61,7 @@ def has_support_ticket_permission(doc, ptype: str | None = None, user: str | Non
     return doc.owner == user
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def request_reattempt_for_invoice(invoice_name: str, message: str | None = None):
     assert_support_ticket_enabled()
     shipment = get_reference_for_invoice(invoice_name)
@@ -69,7 +69,7 @@ def request_reattempt_for_invoice(invoice_name: str, message: str | None = None)
     return create_support_ticket(shipment, REATTEMPT_ISSUE_TYPE, message or default_message)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def request_hub_address_for_invoice(invoice_name: str, message: str | None = None):
     assert_support_ticket_enabled()
     shipment = get_reference_for_invoice(invoice_name)
@@ -78,7 +78,7 @@ def request_hub_address_for_invoice(invoice_name: str, message: str | None = Non
     return create_support_ticket(shipment, HUB_ADDRESS_ISSUE_TYPE, message or default_message)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def request_reattempt_for_encounter(encounter_name: str, message: str | None = None):
     assert_support_ticket_enabled()
     encounter = frappe.get_doc("Patient Encounter", encounter_name)
@@ -89,7 +89,7 @@ def request_reattempt_for_encounter(encounter_name: str, message: str | None = N
     return create_support_ticket(shipment, REATTEMPT_ISSUE_TYPE, message or default_message)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def request_hub_address_for_encounter(encounter_name: str, message: str | None = None):
     assert_support_ticket_enabled()
     encounter = frappe.get_doc("Patient Encounter", encounter_name)
@@ -132,7 +132,7 @@ def get_existing_support_state_for_encounter(encounter_name: str):
     return get_existing_support_state(encounter, getattr(encounter, "pe_latest_support_ticket", None))
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def refresh_support_ticket(ticket_name: str):
     assert_support_ticket_enabled()
     ticket = frappe.get_doc("Shipment Tracking Support Ticket", ticket_name)
@@ -174,7 +174,7 @@ def refresh_support_ticket(ticket_name: str):
     return support_return_payload(ticket, body, "Support ticket refreshed.")
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 def support_ticket_update(payload: Any | None = None):
     settings = get_settings()
     assert_support_ticket_enabled()

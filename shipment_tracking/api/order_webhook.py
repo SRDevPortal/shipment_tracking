@@ -34,7 +34,7 @@ def first_clean_value(data, *fieldnames):
     return None
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 def order_status_update():
     """
     Receives webhook from n8n → updates Shipment Tracking Shipment
