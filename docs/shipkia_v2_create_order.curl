@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+# New Shipkia OMS - Create Order
+# Amounts: rupees | dimensions: centimetres | weights: grams
+# Replace the API key, pickup address, and sample customer/order data before use.
+# If billing differs, set is_billing_same to false and add the required billing_* fields.
+
+curl --request POST \
+  --url 'https://api.shipkia.com/oms/orders' \
+  --header 'Content-Type: application/json' \
+  --header 'x-api-key: REPLACE_WITH_SHIPKIA_API_KEY' \
+  --data-raw '{
+    "pickup_address": "PA-2026-00001",
+    "delivery_phone": "+91-9667465966",
+    "delivery_full_name": "Sample Customer",
+    "delivery_address": "123 Sample Street",
+    "delivery_postal_code": "110001",
+    "delivery_landmark": "Near Sample Market",
+    "is_billing_same": true,
+    "payment_method": "cod",
+    "order_channel": "ERPNext",
+    "product_details": [
+      {
+        "product_name": "Sample Product",
+        "unit_price": 100.00,
+        "quantity": 2,
+        "hsn_code": "30049011",
+        "weight": 250,
+        "tax_rate": 0,
+        "tax_preference": "Inclusive",
+        "product_discount": 0
+      }
+    ],
+    "shipping_charge": 0,
+    "transaction_charge": 0,
+    "gift_wrap_charge": 0,
+    "additional_discount": 10.00,
+    "prepaid_amount": 100.00,
+    "length": 10,
+    "breadth": 10,
+    "height": 5,
+    "dead_weight": 500,
+    "order_tag": "SINV-SAMPLE-0001",
+    "notes": "ERPNext Sales Invoice SINV-SAMPLE-0001"
+  }'
+
+# Verified response:
+# {
+#   "success": true,
+#   "message": "Order created successfully",
+#   "result": {
+#     "id": "ORD-2026-00001",
+#     "title": "ORD-2026-00001",
+#     "cod_amount": 90
+#   },
+#   "traceId": "b83490b2-b73d-401c-8178-da4730027d92"
+# }

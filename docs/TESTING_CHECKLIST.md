@@ -6,6 +6,7 @@
 - [ ] `bench --site <site> migrate` succeeds
 - [ ] DocTypes are visible:
   - [ ] Shipment Tracking Settings
+  - [ ] Shipkia Account
   - [ ] Shipment Tracking Shipment
   - [ ] Shipment Tracking Sync Log
 
@@ -38,9 +39,9 @@ Use a submitted Sales Invoice with:
 - [ ] at least one item row
 
 Then test:
-- [ ] **Send to Shipkia** button appears on submitted Sales Invoice
+- [ ] **Create Shipkia Order** button appears on a submitted Sales Invoice
 - [ ] button creates external order successfully
-- [ ] Shipkia response returns usable `docs[0].name`
+- [ ] Shipkia response returns usable `result.id`
 - [ ] `Shipment Tracking Shipment` record is created
 - [ ] Sales Invoice gets:
   - [ ] shipkia_order_id

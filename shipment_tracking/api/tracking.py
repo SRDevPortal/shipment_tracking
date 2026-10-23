@@ -1,208 +1,255 @@
+"""Public manual-tracking endpoints and platform router."""
 from __future__ import annotations
 
 import frappe
-import requests
 from frappe.utils import cint
 
-from .utils import (
-    ACTIVE_SYNC_DEFAULT_LIMIT,
-    TERMINAL_STATUSES,
-    as_datetime,
-    dedupe_event_key,
-    get_settings,
-    latest_timeline_entry,
-    make_auth_headers,
-    normalize_tracking_status,
-    safe_json,
-    safe_response_json,
-    tracking_result,
-    update_doc_if_exists,
-)
+from shipment_tracking.api.accounts import LEGACY_ACCOUNT, get_account, legacy_settings
+from shipment_tracking.services.shipments import get_linked_encounter, mirror_summary_fields
+from shipment_tracking.services.statuses import ACTIVE_SYNC_DEFAULT_LIMIT, TERMINAL_STATUSES
 
 
-@frappe.whitelist()
-def get_tracking_ui_settings():
-    settings = get_settings()
-    return {
-        "enable_manual_tracking_refresh": bool(cint(getattr(settings, "enable_manual_tracking_refresh", 0)))
-    }
+def _account_for_shipment(shipment):
+    if not shipment.shipkia_account:
+        frappe.throw("Shipment account is unassigned. Ask an administrator to review ownership.")
+    return get_account(shipment.shipkia_account)
 
 
-@frappe.whitelist(methods=["POST"])
-def sync_tracking_for_shipment(shipment_name: str):
-    shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
-    shipment.check_permission("read")
-    shipment.check_permission("write")
-    validate_manual_tracking_refresh_enabled()
-    return _sync_tracking(shipment)
+def _adapter_for(account):
+    if account.platform == "Legacy":
+        from shipment_tracking.api import legacy_tracking as adapter
+    elif account.platform == "New OMS":
+        from shipment_tracking.api.v2 import tracking as adapter
+    else:
+        frappe.throw("Unsupported Shipkia platform.")
+    return adapter
 
 
-@frappe.whitelist(methods=["POST"])
-def sync_tracking_for_invoice(invoice_name: str):
-    invoice = frappe.get_doc("Sales Invoice", invoice_name)
-    invoice.check_permission("read")
-    invoice.check_permission("write")
-    validate_manual_tracking_refresh_enabled()
-    shipment = get_or_create_shipment(si=invoice, order_id=getattr(invoice, "si_shipkia_order_id", None), create=False)
-    if not shipment:
-        frappe.throw("No shipment record linked to this Sales Invoice.")
-    repair_shipment_links(shipment, si=invoice, order_id=getattr(invoice, "si_shipkia_order_id", None))
-    return _sync_tracking(shipment)
+def _find_reference_shipment(reference, link_field, relation_field, order_field):
+    linked_name = getattr(reference, link_field, None)
+    if linked_name:
+        shipment = frappe.get_doc("Shipment Tracking Shipment", linked_name)
+        if shipment.get(relation_field) and shipment.get(relation_field) != reference.name:
+            frappe.throw("The linked shipment belongs to another document.")
+        return shipment
 
-
-@frappe.whitelist(methods=["POST"])
-def sync_tracking_for_encounter(encounter_name: str):
-    encounter = frappe.get_doc("Patient Encounter", encounter_name)
-    encounter.check_permission("read")
-    encounter.check_permission("write")
-    validate_manual_tracking_refresh_enabled()
-    shipment = get_or_create_shipment(
-        encounter=encounter,
-        order_id=getattr(encounter, "pe_shipkia_order_id", None),
-        create=False,
+    candidates = frappe.get_all(
+        "Shipment Tracking Shipment",
+        filters={relation_field: reference.name},
+        pluck="name",
+        limit=2,
     )
-    if not shipment:
-        frappe.throw("No shipment record linked to this Patient Encounter.")
-    repair_shipment_links(shipment, encounter=encounter, order_id=getattr(encounter, "pe_shipkia_order_id", None))
-    return _sync_tracking(shipment)
+    order_id = getattr(reference, order_field, None)
+    if not candidates and order_id:
+        candidates = frappe.get_all(
+            "Shipment Tracking Shipment",
+            filters={"shipkia_order_id": order_id},
+            pluck="name",
+            limit=2,
+        )
+    if len(candidates) > 1:
+        frappe.throw("Multiple shipments match. Open the specific shipment for review.")
+    return frappe.get_doc("Shipment Tracking Shipment", candidates[0]) if candidates else None
 
 
-def validate_manual_tracking_refresh_enabled():
-    settings = get_settings()
-    if not cint(getattr(settings, "enable_manual_tracking_refresh", 0)):
-        frappe.throw("Manual shipment status refresh is disabled in Shipment Tracking Settings.")
+def _tracking_identifier_available(shipment, platform):
+    if platform == "Legacy":
+        return bool(shipment.shipkia_order_id)
+    if platform == "New OMS":
+        return bool(shipment.shipkia_order_id)
+    return False
 
 
-@frappe.whitelist(methods=["POST"])
-def sync_tracking_by_order_id(order_id: str):
-    shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"shipkia_order_id": order_id}, "name")
-    if not shipment_name:
-        frappe.throw("No shipment record found for this Shipkia Order ID.")
-
-    shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
-    shipment.check_permission("read")
-    shipment.check_permission("write")
-    validate_manual_tracking_refresh_enabled()
-    return _sync_tracking(shipment)
+def _validate_tracking_enabled(account):
+    if not cint(account.allow_existing_operations):
+        frappe.throw("Existing operations are disabled for this Shipkia account.")
+    if not cint(account.enable_manual_tracking_refresh):
+        frappe.throw("Tracking is disabled for this Shipkia account.")
+    if not account.order_tracking_url:
+        frappe.throw("Configure the Order Tracking URL for this Shipkia account.")
 
 
 def _sync_tracking(shipment):
-    """Internal provider operation; RPC callers authorize their source first."""
-    if not shipment.shipkia_order_id:
-        frappe.throw("Shipment has no Shipkia Order ID.")
-    settings = get_settings()
-    if not settings.enabled:
-        frappe.throw("Shipment Tracking is disabled in settings.")
+    account = _account_for_shipment(shipment)
+    _validate_tracking_enabled(account)
+    from shipment_tracking.services.tracking import run
+    return run(shipment, account, _adapter_for(account))
 
-    payload = {"order_id": shipment.shipkia_order_id}
-    log = frappe.get_doc(
-        {
-            "doctype": "Shipment Tracking Sync Log",
-            "direction": "Outbound",
-            "action": "Track Shipment",
-            "reference_doctype": "Shipment Tracking Shipment",
-            "reference_name": shipment.name,
-            "shipkia_order_id": shipment.shipkia_order_id,
-            "request_json": safe_json(payload),
-            "status": "Running",
+
+@frappe.whitelist()
+def get_tracking_ui_settings(invoice_name=None, encounter_name=None):
+    if invoice_name or encounter_name:
+        is_invoice = bool(invoice_name)
+        reference = frappe.get_doc(
+            "Sales Invoice" if is_invoice else "Patient Encounter",
+            invoice_name or encounter_name,
+        )
+        reference.check_permission("read")
+        shipment = _find_reference_shipment(
+            reference,
+            "si_shipkia_shipment" if is_invoice else "pe_shipkia_shipment",
+            "sales_invoice" if is_invoice else "patient_encounter",
+            "si_shipkia_order_id" if is_invoice else "pe_shipkia_order_id",
+        )
+        if not shipment:
+            return {"enable_manual_tracking_refresh": False}
+        account = frappe.get_doc("Shipkia Account", shipment.shipkia_account)
+        configured = bool(
+            account.allow_existing_operations
+            and account.enable_manual_tracking_refresh
+            and account.order_tracking_url
+        )
+        identifier_available = _tracking_identifier_available(
+            shipment,
+            account.platform,
+        )
+        return {
+            "enable_manual_tracking_refresh": configured and identifier_available,
+            "tracking_configured": configured,
+            "tracking_available": identifier_available,
+            "unavailable_reason": (
+                None
+                if identifier_available
+                else "Shipkia has not assigned a tracking ID or AWB yet."
+            ),
+            "account": account.name,
+            "platform": account.platform,
+            "shipment": shipment.name,
+            "order_id": shipment.shipkia_order_id,
+            "tracking_id": shipment.shipkia_tracking_id,
+            "awb": shipment.shipkia_awb_number,
+            "stage": shipment.shipkia_stage,
+            "status": shipment.shipkia_status,
+            "courier": shipment.delivery_partner,
+            "courier_mode": shipment.courier_partner_mode,
+            "last_updated": shipment.last_synced_on,
         }
-    ).insert(ignore_permissions=True)
 
-    try:
-        response = requests.post(
-            settings.tracking_url,
-            headers=make_auth_headers(settings),
-            json=payload,
-            timeout=60,
-        )
-        body = safe_response_json(response)
-    except Exception:
-        log.status = "Failed"
-        log.error_message = str(frappe.get_traceback())
-        log.save(ignore_permissions=True)
-        frappe.db.commit()
-        frappe.throw("Unable to reach the shipping service. Please retry later.")
-
-    log.http_status = response.status_code
-    log.response_json = safe_json(body)
-    if response.status_code not in (200, 201, 202):
-        log.status = "Failed"
-        log.error_message = (
-            safe_json(body.get("message"))
-            if isinstance(body, dict)
-            else str(response.text)
-        )
-        log.save(ignore_permissions=True)
-        frappe.db.commit()
-        frappe.throw("Shipkia tracking sync failed. Check Shipment Tracking Sync Log.")
-
-    if not tracking_result(body):
-        log.status = "Failed"
-        if isinstance(body, dict) and body.get("raw_text"):
-            log.error_message = (
-                "Tracking URL returned non-JSON/HTML content. "
-                "Please configure Shipment Tracking Settings > Tracking URL to the Shipkia API endpoint, "
-                "not the public tracking web page."
-            )
-        else:
-            log.error_message = "Tracking response did not contain result payload."
-        log.save(ignore_permissions=True)
-        frappe.db.commit()
-        frappe.throw(log.error_message)
-
-    apply_tracking_response(shipment, body)
-    log.status = "Success"
-    log.save(ignore_permissions=True)
-
+    account = legacy_settings()
     return {
-        "success": True,
-        "shipment": shipment.name,
-        "status": shipment.shipkia_status,
-        "message": "Shipment tracking updated.",
+        "enable_manual_tracking_refresh": bool(account.enable_manual_tracking_refresh),
+        "account": account.name,
+        "platform": account.platform,
     }
 
 
-def get_or_create_shipment(si=None, encounter=None, order_id: str | None = None, create: bool = True):
+@frappe.whitelist(methods=["POST"])
+def sync_tracking_for_shipment(shipment_name):
+    shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
+    shipment.check_permission("read")
+    shipment.check_permission("write")
+    return _sync_tracking(shipment)
+
+
+@frappe.whitelist(methods=["POST"])
+def sync_tracking_for_invoice(invoice_name):
+    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+    invoice.check_permission("read")
+    invoice.check_permission("write")
+    shipment = _find_reference_shipment(
+        invoice,
+        "si_shipkia_shipment",
+        "sales_invoice",
+        "si_shipkia_order_id",
+    )
+    if not shipment:
+        frappe.throw("No shipment record linked to this Sales Invoice.")
+    repair_shipment_links(
+        shipment,
+        si=invoice,
+        order_id=getattr(invoice, "si_shipkia_order_id", None),
+    )
+    return _sync_tracking(shipment)
+
+
+@frappe.whitelist(methods=["POST"])
+def sync_tracking_for_encounter(encounter_name):
+    encounter = frappe.get_doc("Patient Encounter", encounter_name)
+    encounter.check_permission("read")
+    encounter.check_permission("write")
+    shipment = _find_reference_shipment(
+        encounter,
+        "pe_shipkia_shipment",
+        "patient_encounter",
+        "pe_shipkia_order_id",
+    )
+    if not shipment:
+        frappe.throw("No shipment record linked to this Patient Encounter.")
+    repair_shipment_links(
+        shipment,
+        encounter=encounter,
+        order_id=getattr(encounter, "pe_shipkia_order_id", None),
+    )
+    return _sync_tracking(shipment)
+
+
+@frappe.whitelist(methods=["POST"])
+def sync_tracking_by_order_id(order_id):
+    names = frappe.get_all(
+        "Shipment Tracking Shipment",
+        filters={"shipkia_order_id": order_id},
+        pluck="name",
+        limit=2,
+    )
+    if len(names) != 1:
+        frappe.throw("Order ownership is missing or ambiguous. Open the specific shipment instead.")
+    shipment = frappe.get_doc("Shipment Tracking Shipment", names[0])
+    shipment.check_permission("read")
+    shipment.check_permission("write")
+    return _sync_tracking(shipment)
+
+
+def validate_manual_tracking_refresh_enabled(account=None):
+    account = account or legacy_settings()
+    _validate_tracking_enabled(account)
+
+
+def get_or_create_shipment(si=None, encounter=None, order_id=None, create=True):
     order_id = (order_id or "").strip()
     lookups = []
     if order_id:
-        lookups.append({"shipkia_order_id": order_id})
+        lookups.append({"shipkia_order_id": order_id, "shipkia_account": LEGACY_ACCOUNT})
     if si:
-        lookups.extend(
-            [
-                {"name": getattr(si, "si_shipkia_shipment", None)},
-                {"sales_invoice": si.name},
-            ]
-        )
+        lookups.extend([
+            {"name": getattr(si, "si_shipkia_shipment", None)},
+            {"sales_invoice": si.name},
+        ])
     if encounter:
-        lookups.extend(
-            [
-                {"name": getattr(encounter, "pe_shipkia_shipment", None)},
-                {"patient_encounter": encounter.name},
-            ]
-        )
+        lookups.extend([
+            {"name": getattr(encounter, "pe_shipkia_shipment", None)},
+            {"patient_encounter": encounter.name},
+        ])
 
     seen = set()
     for filters in lookups:
         filters = {key: value for key, value in filters.items() if value}
         if not filters:
             continue
+        filters["shipkia_account"] = LEGACY_ACCOUNT
         key = tuple(sorted(filters.items()))
         if key in seen:
             continue
         seen.add(key)
-        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", filters, "name")
-        if shipment_name:
-            return frappe.get_doc("Shipment Tracking Shipment", shipment_name)
-
+        names = frappe.get_all(
+            "Shipment Tracking Shipment",
+            filters=filters,
+            pluck="name",
+            limit=2,
+        )
+        if len(names) > 1:
+            frappe.throw("Multiple Legacy shipments match. Open the specific shipment for review.")
+        if names:
+            return frappe.get_doc("Shipment Tracking Shipment", names[0])
     if not create:
         return None
-    return frappe.get_doc({"doctype": "Shipment Tracking Shipment"})
+    return frappe.get_doc({
+        "doctype": "Shipment Tracking Shipment",
+        "shipkia_account": LEGACY_ACCOUNT,
+    })
 
 
-def repair_shipment_links(shipment, si=None, encounter=None, order_id: str | None = None) -> bool:
+def repair_shipment_links(shipment, si=None, encounter=None, order_id=None):
     changed = False
-
     if si:
         if shipment.sales_invoice and shipment.sales_invoice != si.name:
             frappe.throw(
@@ -229,6 +276,8 @@ def repair_shipment_links(shipment, si=None, encounter=None, order_id: str | Non
         shipment.patient = encounter.patient
         changed = True
 
+    if order_id and shipment.shipkia_order_id and shipment.shipkia_order_id != order_id:
+        frappe.throw("Cannot overwrite a shipment order ID. Create a replacement shipment.")
     if order_id and shipment.shipkia_order_id != order_id:
         shipment.shipkia_order_id = order_id
         changed = True
@@ -240,20 +289,26 @@ def repair_shipment_links(shipment, si=None, encounter=None, order_id: str | Non
             sales_invoice=shipment.sales_invoice,
             encounter_name=shipment.patient_encounter,
         )
-
     return changed
 
 
-def create_or_update_shipment_from_order_response(si, encounter, order_id: str, body: dict):
-    shipment = get_or_create_shipment(si=si, encounter=encounter, order_id=order_id)
-    repair_shipment_links(shipment, si=si, encounter=encounter, order_id=order_id)
-    shipment.raw_latest_response = safe_json(body)
-
+def create_or_update_shipment_from_order_response(si, encounter, order_id, body):
+    shipment = get_or_create_shipment(
+        si=si,
+        encounter=encounter,
+        order_id=order_id,
+    )
+    repair_shipment_links(
+        shipment,
+        si=si,
+        encounter=encounter,
+        order_id=order_id,
+    )
+    shipment.raw_latest_response = frappe.as_json(body)
     if shipment.is_new():
         shipment.insert(ignore_permissions=True)
     else:
         shipment.save(ignore_permissions=True)
-
     mirror_summary_fields(
         shipment,
         sales_invoice=si.name,
@@ -262,133 +317,72 @@ def create_or_update_shipment_from_order_response(si, encounter, order_id: str, 
     return shipment
 
 
-def apply_tracking_response(shipment, body: dict):
-    result = tracking_result(body)
-    order_details = result.get("order_details") or {}
-    latest = latest_timeline_entry(result)
-    previous_normalized_status = normalize_tracking_status(
-        shipment.normalized_status or shipment.shipkia_status
-    )
-
-    shipment.company = result.get("company") or ""
-    shipment.company_id = result.get("company_id") or ""
-    shipment.shipkia_status = result.get("status") or latest.get("status") or shipment.shipkia_status
-    shipment.shipkia_stage = result.get("order_stage") or order_details.get("order_stage") or shipment.shipkia_stage
-    shipment.normalized_status = normalize_tracking_status(shipment.shipkia_status)
-    shipment.shipkia_status_detail = latest.get("detail") or ""
-    shipment.shipkia_tracking_id = result.get("tracking_id") or ""
-    shipment.shipkia_awb_number = order_details.get("awb_number") or ""
-    shipment.payment_mode = order_details.get("payment_mode") or ""
-    shipment.delivery_partner = order_details.get("delivery_partner") or ""
-    shipment.delivery_location = order_details.get("delivery_location") or ""
-    shipment.shipkia_estimated_delivery = as_datetime(result.get("estimated_delivery"))
-    shipment.shipkia_delivered_on = as_datetime(result.get("delivered_on"))
-    shipment.last_synced_on = frappe.utils.now_datetime()
-    shipment.raw_latest_response = safe_json(body)
-    shipment.save(ignore_permissions=True)
-
-    sync_timeline(shipment, result.get("shipment_timeline") or [])
-    mirror_summary_fields(shipment, sales_invoice=shipment.sales_invoice, encounter_name=shipment.patient_encounter)
-
-    from shipment_tracking.notifications import notify_shipment_status_transition
-
-    notify_shipment_status_transition(shipment, previous_normalized_status)
+def apply_tracking_response(shipment, body):
+    from shipment_tracking.api import legacy_tracking
+    from shipment_tracking.services.tracking import apply_tracking_data
+    data = legacy_tracking.parse_response(body, shipment)
+    return apply_tracking_data(shipment, data, body)
 
 
-def sync_timeline(shipment, timeline_rows: list[dict]):
-    existing = {
-        dedupe_event_key({
-            "date_time": row.date_time,
-            "status": row.status,
-            "detail": row.detail,
-            "location": row.location,
-        })
-        for row in shipment.events or []
-    }
-
-    changed = False
-    for row in timeline_rows:
-        key = dedupe_event_key(row)
-        if key in existing:
-            continue
-        shipment.append(
-            "events",
-            {
-                "date_time": row.get("date_time"),
-                "status": row.get("status"),
-                "detail": row.get("detail"),
-                "location": row.get("location"),
-            },
-        )
-        changed = True
-
+def sync_timeline(shipment, timeline_rows):
+    from shipment_tracking.services.tracking import sync_timeline as shared_sync_timeline
+    changed = shared_sync_timeline(shipment, timeline_rows)
     if changed:
         shipment.save(ignore_permissions=True)
-
-
-def mirror_summary_fields(shipment, sales_invoice: str | None, encounter_name: str | None):
-
-    # Sales Invoice fields
-    si_values = {
-        "si_shipkia_order_id": shipment.shipkia_order_id,
-        "si_shipkia_awb_number": shipment.shipkia_awb_number,
-        "si_delivery_partner": shipment.delivery_partner,
-        "si_shipkia_stage": shipment.shipkia_stage,
-        "si_shipkia_status": shipment.shipkia_status,
-        "si_shipkia_estimated_delivery": shipment.shipkia_estimated_delivery,
-        "si_shipkia_delivered_on": shipment.shipkia_delivered_on,
-        "si_shipkia_shipment": shipment.name,
-    }
-
-    # Patient Encounter fields
-    pe_values = {
-        "pe_shipkia_order_id": shipment.shipkia_order_id,
-        "pe_shipkia_awb_number": shipment.shipkia_awb_number,
-        "pe_delivery_partner": shipment.delivery_partner,
-        "pe_shipkia_stage": shipment.shipkia_stage,
-        "pe_shipkia_status": shipment.shipkia_status,
-        "pe_shipkia_estimated_delivery": shipment.shipkia_estimated_delivery,
-        "pe_shipkia_delivered_on": shipment.shipkia_delivered_on,
-        "pe_shipkia_shipment": shipment.name,
-    }
-
-    update_doc_if_exists("Sales Invoice", sales_invoice, si_values)
-    update_doc_if_exists("Patient Encounter", encounter_name, pe_values)
-
-
-def get_linked_encounter(si):
-    for fieldname in ("source_encounter", "patient_encounter", "sr_patient_encounter", "reference_name"):
-        value = getattr(si, fieldname, None)
-        if value and frappe.db.exists("Patient Encounter", value):
-            return frappe.get_doc("Patient Encounter", value)
-
-    remarks = getattr(si, "remarks", "") or ""
-    marker = "Patient Encounter:"
-    if marker in remarks:
-        candidate = remarks.split(marker, 1)[1].strip().split()[0].strip()
-        if candidate and frappe.db.exists("Patient Encounter", candidate):
-            return frappe.get_doc("Patient Encounter", candidate)
-
-    encounter_name = frappe.db.get_value(
-        "Patient Encounter",
-        {"patient": getattr(si, "patient", None), "docstatus": 1},
-        "name",
-        order_by="modified desc",
-    )
-    if encounter_name:
-        return frappe.get_doc("Patient Encounter", encounter_name)
-    return None
+    return changed
 
 
 def sync_active_shipments():
     names = frappe.get_all(
         "Shipment Tracking Shipment",
-        filters={"shipkia_status": ["not in", list(TERMINAL_STATUSES)]},
+        filters={"normalized_status": ["not in", list(TERMINAL_STATUSES)]},
         pluck="name",
         limit=ACTIVE_SYNC_DEFAULT_LIMIT,
     )
     for name in names:
         try:
-            _sync_tracking(frappe.get_doc("Shipment Tracking Shipment", name))
+            shipment = frappe.get_doc("Shipment Tracking Shipment", name)
+            account = _account_for_shipment(shipment)
+            if account.enable_manual_tracking_refresh and account.allow_existing_operations:
+                _sync_tracking(shipment)
         except Exception:
-            frappe.log_error(frappe.get_traceback(), f"Shipment Tracking auto-sync failed for {name}")
+            frappe.log_error(
+                frappe.get_traceback(),
+                f"Shipment Tracking auto-sync failed for {name}",
+            )
+
+
+def _check_tracking_for_reference(reference, is_invoice):
+    shipment = _find_reference_shipment(
+        reference,
+        "si_shipkia_shipment" if is_invoice else "pe_shipkia_shipment",
+        "sales_invoice" if is_invoice else "patient_encounter",
+        "si_shipkia_order_id" if is_invoice else "pe_shipkia_order_id",
+    )
+    if not shipment:
+        frappe.throw("No shipment record is linked to this document.")
+    shipment.check_permission("read")
+    account = _account_for_shipment(shipment)
+    _validate_tracking_enabled(account)
+    from shipment_tracking.services.tracking import check_for_updates
+    return check_for_updates(shipment, account, _adapter_for(account))
+
+
+@frappe.whitelist(methods=["POST"])
+def check_tracking_for_invoice(invoice_name):
+    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+    invoice.check_permission("read")
+    return _check_tracking_for_reference(invoice, True)
+
+
+@frappe.whitelist(methods=["POST"])
+def check_tracking_for_encounter(encounter_name):
+    encounter = frappe.get_doc("Patient Encounter", encounter_name)
+    encounter.check_permission("read")
+    return _check_tracking_for_reference(encounter, False)
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_tracking_check(check_token):
+    from shipment_tracking.services.tracking import apply_checked_update
+    return apply_checked_update(check_token)

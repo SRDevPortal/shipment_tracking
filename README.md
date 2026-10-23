@@ -62,3 +62,44 @@ bench restart
 ## License
 
 MIT
+
+
+### Shipkia accounts and V2 order routing
+
+Shipment Tracking Settings selects one default Shipkia Account for new orders.
+The invoice confirmation shows the account and payment summary. Legacy entry
+points remain under `shipment_tracking.api.order`; the invoice button calls
+`shipment_tracking.api.dispatch`. New OMS has an independent adapter under
+`shipment_tracking.api.v2.order`, with no Legacy or product API dependencies.
+Shipkia must resolve/create products from the supplied order product details.
+
+Configure credentials, endpoints, pickup address, channel and parcel defaults on
+each account. Existing global Legacy configuration is retained as rollback data,
+but active provider operations read the account. Migration does not overwrite
+already migrated account settings or change the default selection.
+
+Before enabling V2 order sending, verify its server-managed product behavior,
+JSON request format, rupee amounts, parcel units, order payload and response ID path with Shipkia,
+then enable **V2 Contract Verified**. The supplied workflow demonstrates an order
+payload but also contains product sync steps; it does not establish that product
+sync can be omitted. No live order is sent by migration. V2 tracking, webhooks
+and support are unavailable until their contracts/adapters are implemented.
+
+Every shipment/log/ticket retains its account. Replacements require a reason,
+keep the original account and create a separate shipment. Old callbacks cannot
+replace the invoice's current shipment summary. Switching the default never
+resends historical orders. Unassigned ownership and duplicate historical
+identities require review; migration preserves them rather than guessing.
+
+A timeout, server error or missing response ID leaves an **Uncertain** attempt;
+**Running** and **Uncertain** attempts block another create across both accounts.
+System Managers can open the sync log and choose **Reconcile order attempt**
+after checking Shipkia. **Created** links the verified external order without a
+provider request; **Not created** permits a later manual retry. Do not resolve an
+attempt until the original operation has completed and the provider outcome is
+known. There is no automatic retry or account fallback.
+
+To use the backup provider, select **Legacy** as the default account and save.
+Keep existing account records and credentials: historical operations use their
+saved account. Reverting source code alone would lose V2 routing; take a full
+backup before any schema/code rollback.

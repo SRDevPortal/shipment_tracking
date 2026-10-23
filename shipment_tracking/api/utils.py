@@ -1,137 +1,29 @@
-from __future__ import annotations
+"""Compatibility imports; new code should use api.legacy_utils or services.statuses."""
+from shipment_tracking.api.legacy_utils import (
+    first_order_id,
+    get_settings,
+    latest_timeline_entry,
+    make_auth_headers,
+    safe_response_json,
+    tracking_result,
+    validate_webhook_secret,
+)
+from shipment_tracking.services.statuses import (
+    ACTIVE_SYNC_DEFAULT_LIMIT,
+    TERMINAL_STATUSES,
+    TRACKING_STATUS_MAP,
+    as_datetime,
+    as_float,
+    dedupe_event_key,
+    normalize_tracking_status,
+    safe_json,
+    update_doc_if_exists,
+)
 
-import json
-from typing import Any
-
-import frappe
-from frappe.utils import cstr, flt, get_datetime
-
-
-TERMINAL_STATUSES = {"Delivered", "RTO", "Cancelled"}
-ACTIVE_SYNC_DEFAULT_LIMIT = 100
-TRACKING_STATUS_MAP = {
-    "pickup scheduled": "Pending Pickup",
-    "picked up": "Picked Up",
-    "pickup completed": "Picked Up",
-    "in transit": "In Transit",
-    "reached destination hub": "In Transit",
-    "out for delivery": "Out for Delivery",
-    "ofd": "Out for Delivery",
-    "delivered": "Delivered",
-    "rto": "RTO",
-    "cancelled": "Cancelled",
-}
-
-
-def get_settings():
-    return frappe.get_single("Shipment Tracking Settings")
-
-
-def validate_webhook_secret(settings=None) -> None:
-    settings = settings or get_settings()
-    if not getattr(settings, "enable_webhook_security", 0):
-        return
-
-    secret = settings.get_password("webhook_secret", raise_exception=False) or ""
-    incoming_secret = frappe.get_request_header("X-Webhook-Secret") or ""
-    if not secret or incoming_secret != secret:
-        frappe.local.response["http_status_code"] = 403
-        frappe.throw("Unauthorized request", frappe.PermissionError)
-
-
-def make_auth_headers(settings) -> dict[str, str]:
-    api_key = settings.get_password("api_key", raise_exception=False) or ""
-    api_secret = settings.get_password("api_secret", raise_exception=False) or ""
-    headers = {"Content-Type": "application/json"}
-    if api_key and api_secret:
-        headers["Authorization"] = f"token {api_key}:{api_secret}"
-    return headers
-
-
-def safe_json(value: Any) -> str:
-    return json.dumps(value, indent=2, default=str)
-
-
-def first_order_id(body):
-    if not isinstance(body, dict):
-        return None
-
-    message = body.get("message") or {}
-
-    if isinstance(message, dict):
-        docs = message.get("docs") or []
-        if isinstance(docs, list) and docs:
-            return docs[0].get("name")
-
-    return None
-
-
-def tracking_result(response_json: dict[str, Any]) -> dict[str, Any]:
-    if not isinstance(response_json, dict):
-        return {}
-
-    result = response_json.get("result")
-    if isinstance(result, dict):
-        return result
-
-    message = response_json.get("message")
-    if isinstance(message, dict):
-        result = message.get("result")
-        if isinstance(result, dict):
-            return result
-
-        if any(key in message for key in ("order_details", "shipment_timeline", "status", "order_stage")):
-            return message
-
-    return {}
-
-
-def latest_timeline_entry(result: dict[str, Any]) -> dict[str, Any]:
-    timeline = result.get("shipment_timeline") or []
-    if not timeline:
-        return {}
-    return timeline[0]
-
-
-def normalize_tracking_status(status: str | None) -> str:
-    raw = cstr(status or "").strip()
-    if not raw:
-        return ""
-    return TRACKING_STATUS_MAP.get(raw.lower(), raw)
-
-
-def safe_response_json(response) -> dict[str, Any]:
-    try:
-        body = response.json()
-        return body if isinstance(body, dict) else {"raw": body}
-    except Exception:
-        return {"raw_text": getattr(response, "text", "")}
-
-
-def update_doc_if_exists(doctype: str, name: str | None, values: dict[str, Any]) -> None:
-    if not name:
-        return
-    if not frappe.db.exists(doctype, name):
-        return
-    frappe.db.set_value(doctype, name, values, update_modified=False)
-
-
-def dedupe_event_key(row: dict[str, Any]) -> str:
-    return "|".join(
-        [
-            cstr(row.get("date_time")),
-            cstr(row.get("status")),
-            cstr(row.get("detail")),
-            cstr(row.get("location")),
-        ]
-    )
-
-
-def as_datetime(value):
-    if not value:
-        return None
-    return get_datetime(value)
-
-
-def as_float(value) -> float:
-    return flt(value or 0)
+__all__ = [
+    "ACTIVE_SYNC_DEFAULT_LIMIT", "TERMINAL_STATUSES", "TRACKING_STATUS_MAP",
+    "as_datetime", "as_float", "dedupe_event_key", "first_order_id",
+    "get_settings", "latest_timeline_entry", "make_auth_headers",
+    "normalize_tracking_status", "safe_json", "safe_response_json",
+    "tracking_result", "update_doc_if_exists", "validate_webhook_secret",
+]

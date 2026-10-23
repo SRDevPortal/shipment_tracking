@@ -6,8 +6,8 @@ import frappe
 import requests
 from frappe.utils import cstr
 
-from .utils import first_order_id, get_settings, make_auth_headers, safe_json, safe_response_json
-from .tracking import create_or_update_shipment_from_order_response, get_linked_encounter
+from .legacy_utils import first_order_id, get_settings, make_auth_headers, safe_response_json
+from shipment_tracking.services.statuses import safe_json
 
 
 SHIPKIA_SAFE_TEXT_RE = re.compile(r"[^A-Za-z0-9\s,./\-#()']+")
@@ -29,89 +29,28 @@ def redact_order_payload_for_log(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @frappe.whitelist(methods=["POST"])
-def create_order_for_sales_invoice(invoice_name: str, force: int = 0):
-    si = frappe.get_doc("Sales Invoice", invoice_name)
-    si.check_permission("read")
-    si.check_permission("write")
+def create_order_for_sales_invoice(invoice_name: str, force: int = 0, replacement_reason=None):
+    from shipment_tracking.services.orders import run
+    from .accounts import LEGACY_ACCOUNT
+    import sys
+    return run(invoice_name, LEGACY_ACCOUNT, sys.modules[__name__], force, replacement_reason)
 
-    if si.docstatus != 1:
-        frappe.throw("Sales Invoice must be submitted before sending to Shipkia.")
 
-    settings = get_settings()
+def build_payload(invoice, account):
+    if account.platform != "Legacy":
+        frappe.throw("Legacy endpoint requires a Legacy account.")
+    for field in ("create_order_url", "pickup_address", "order_channel"):
+        if not account.get(field):
+            frappe.throw("Configure Legacy account " + field.replace("_", " "))
+    if not account.get_password("api_key", raise_exception=False) or not account.get_password("api_secret", raise_exception=False):
+        frappe.throw("Configure Legacy account credentials.")
+    return build_payload_from_sales_invoice(invoice, account)
 
-    if not settings.enabled:
-        frappe.throw("Shipment Tracking is disabled in settings.")
 
-    if cstr(getattr(si, "si_shipkia_order_id", "")).strip() and not int(force or 0):
-        frappe.throw("This Sales Invoice already has a Shipkia Order ID. Use resend only if intentional.")
-
-    payload = build_payload_from_sales_invoice(si, settings)
-
-    # ✅ FORCE BOOLEAN
-    payload["billing_same_as_delivery"] = True if payload.get("billing_same_as_delivery") else False
-
-    # ✅ Create log
-    log = make_sync_log("Outbound", "Create Order", "Sales Invoice", si.name, payload)
-
-    try:
-        response = requests.post(
-            settings.create_order_url,
-            headers=make_auth_headers(settings),
-            json=payload,
-            timeout=60,
-        )
-        body = safe_response_json(response)
-
-    except Exception:
-        log.status = "Failed"
-        log.error_message = str(frappe.get_traceback())
-        log.save(ignore_permissions=True)
-        frappe.db.commit()
-        frappe.throw("Unable to reach the shipping service. Please retry later.")
-
-    log.http_status = response.status_code
-    log.response_json = safe_json(body)
-
-    if response.status_code not in (200, 201, 202):
-        log.status = "Failed"
-        log.error_message = safe_json(body)
-        log.save(ignore_permissions=True)
-        frappe.db.commit()
-        frappe.throw("Shipkia order request failed. Ask an authorized administrator to review the sync log.")
-
-    order_id = first_order_id(body)
-
-    if not order_id:
-        log.status = "Failed"
-        log.error_message = "Missing order id in response"
-        log.save(ignore_permissions=True)
-        frappe.db.commit()
-        frappe.throw("Shipkia order request failed. Ask an authorized administrator to review the sync log.")
-
-    encounter = get_linked_encounter(si)
-    shipment = create_or_update_shipment_from_order_response(si, encounter, order_id, body)
-
-    log.status = "Success"
-    log.shipkia_order_id = order_id
-    log.save(ignore_permissions=True)
-
-    frappe.db.set_value(
-        "Sales Invoice",
-        si.name,
-        {
-            "si_shipkia_order_id": order_id,
-            "si_shipkia_shipment": shipment.name,
-        },
-        update_modified=False,
-    )
-    frappe.db.commit()
-
-    return {
-        "success": True,
-        "order_id": order_id,
-        "shipment": shipment.name,
-        "message": f"Shipkia order created: {order_id}",
-    }
+def send(account, payload):
+    response = requests.post(account.create_order_url, headers=make_auth_headers(account), json=payload, timeout=60)
+    body = safe_response_json(response)
+    return response, body, first_order_id(body)
 
 
 # =========================================================
@@ -286,6 +225,7 @@ def make_sync_log(direction: str, action: str, reference_doctype: str, reference
     log = frappe.get_doc({
         "doctype": "Shipment Tracking Sync Log",
         "direction": direction,
+        "shipkia_account": "Legacy",
         "action": action,
         "reference_doctype": reference_doctype,
         "reference_name": reference_name,

@@ -7,6 +7,9 @@
   "order_settings_tab",
   "order_api_section",
   "enabled",
+  "default_shipkia_account",
+  "configured_accounts",
+  "legacy_configuration_migrated",
   "create_order_url",
   "enable_manual_tracking_refresh",
   "tracking_url",
@@ -81,97 +84,143 @@
    "default": "0"
   },
   {
+   "fieldname": "default_shipkia_account",
+   "fieldtype": "Link",
+   "label": "Default Shipkia Account",
+   "options": "Shipkia Account",
+   "description": "Only this account is used for new orders. Existing shipments keep their saved account."
+  },
+  {
+   "fieldname": "configured_accounts",
+   "fieldtype": "HTML",
+   "label": "Configured Accounts"
+  },
+  {
+   "fieldname": "legacy_configuration_migrated",
+   "fieldtype": "Check",
+   "label": "Legacy Configuration Migrated",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "create_order_url",
    "fieldtype": "Data",
    "label": "Create Order URL",
-   "reqd": 1
+   "reqd": 0,
+   "hidden": 1
   },
   {
    "fieldname": "tracking_url",
    "fieldtype": "Data",
    "label": "Tracking URL",
    "depends_on": "eval:doc.enable_manual_tracking_refresh",
-   "mandatory_depends_on": "eval:doc.enable_manual_tracking_refresh"
+   "mandatory_depends_on": "eval:doc.enable_manual_tracking_refresh",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "enable_manual_tracking_refresh",
    "fieldtype": "Check",
    "label": "Enable Manual Tracking Refresh",
    "default": "0",
-   "description": "Show and allow the manual Refresh Shipment Status action."
+   "description": "Show and allow the manual Refresh Shipment Status action.",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "order_defaults_section",
    "fieldtype": "Section Break",
-   "label": "Order Defaults"
+   "label": "Order Defaults",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "pickup_address",
    "fieldtype": "Data",
    "label": "Pickup Address",
-   "reqd": 1
+   "reqd": 0,
+   "hidden": 1
   },
   {
    "fieldname": "order_channel",
    "fieldtype": "Data",
    "label": "Order Channel",
    "default": "Custom",
-   "reqd": 1
+   "reqd": 0,
+   "hidden": 1
   },
   {
    "fieldname": "order_defaults_column",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "default_parcel_length",
    "fieldtype": "Float",
    "label": "Default Parcel Length",
-   "default": "1"
+   "default": "1",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "default_parcel_breadth",
    "fieldtype": "Float",
    "label": "Default Parcel Breadth",
-   "default": "1"
+   "default": "1",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "default_parcel_height",
    "fieldtype": "Float",
    "label": "Default Parcel Height",
-   "default": "1"
+   "default": "1",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "default_dead_weight",
    "fieldtype": "Float",
    "label": "Default Dead Weight",
-   "default": "0.1"
+   "default": "0.1",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "order_credentials_section",
    "fieldtype": "Section Break",
-   "label": "Credentials"
+   "label": "Credentials",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "api_key",
    "fieldtype": "Password",
    "label": "API Key",
-   "reqd": 1
+   "reqd": 0,
+   "hidden": 1
   },
   {
    "fieldname": "api_secret",
    "fieldtype": "Password",
    "label": "API Secret",
-   "reqd": 1
+   "reqd": 0,
+   "hidden": 1
   },
   {
    "fieldname": "order_credentials_column",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "enable_webhook_security",
    "fieldtype": "Check",
    "label": "Enable Webhook Security",
-   "default": "1"
+   "default": "1",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "webhook_secret",
@@ -179,52 +228,68 @@
    "label": "Webhook Secret",
    "depends_on": "eval:doc.enable_webhook_security",
    "mandatory_depends_on": "eval:doc.enable_webhook_security",
-   "description": "Secret key for validating incoming webhooks"
+   "description": "Secret key for validating incoming webhooks",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "support_ticket_settings_tab",
    "fieldtype": "Tab Break",
-   "label": "Support Ticket Settings"
+   "label": "Support Ticket Settings",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "support_ticket_api_section",
    "fieldtype": "Section Break",
-   "label": "Support Ticket API"
+   "label": "Support Ticket API",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "enable_support_ticket",
    "fieldtype": "Check",
    "label": "Enable Support Ticket",
    "default": "0",
-   "description": "Show support ticket actions and allow support ticket API/webhook processing."
+   "description": "Show support ticket actions and allow support ticket API/webhook processing.",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "support_create_url",
    "fieldtype": "Data",
    "label": "Support Create URL",
    "depends_on": "eval:doc.enable_support_ticket",
-   "description": "Shipkia create support ticket API endpoint"
+   "description": "Shipkia create support ticket API endpoint",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "support_update_url",
    "fieldtype": "Data",
    "label": "Support Update URL",
    "depends_on": "eval:doc.enable_support_ticket",
-   "description": "Reserved for future support ticket update API calls."
+   "description": "Reserved for future support ticket update API calls.",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "support_get_url",
    "fieldtype": "Data",
    "label": "Support Get URL",
    "depends_on": "eval:doc.enable_support_ticket",
-   "description": "Shipkia get support ticket API endpoint"
+   "description": "Shipkia get support ticket API endpoint",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "support_list_url",
    "fieldtype": "Data",
    "label": "Support List URL",
    "depends_on": "eval:doc.enable_support_ticket",
-   "description": "Reserved for future support ticket list API calls."
+   "description": "Reserved for future support ticket list API calls.",
+   "hidden": 1,
+   "reqd": 0
   },
   {
    "fieldname": "whatsapp_notifications_tab",

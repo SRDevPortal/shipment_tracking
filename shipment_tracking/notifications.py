@@ -5,7 +5,7 @@ from typing import Any
 import frappe
 from frappe.utils import add_to_date, cint, cstr, flt, format_date, format_datetime, now_datetime
 
-from shipment_tracking.api.utils import normalize_tracking_status, safe_json
+from shipment_tracking.services.statuses import normalize_tracking_status, safe_json
 
 
 NOTIFICATION_DOCTYPE = "Shipment WhatsApp Notification"

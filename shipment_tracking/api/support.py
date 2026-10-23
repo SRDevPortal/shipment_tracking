@@ -8,19 +8,19 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import frappe
+from .accounts import legacy_settings, LEGACY_ACCOUNT, reference_account
 from .privacy import support_summary, restricted_support, linked_support_summary
 import requests
 from frappe.utils import cint, cstr
 from frappe.utils.data import add_to_date, get_datetime, now_datetime
 
-from .utils import (
+from .legacy_utils import (
     get_settings,
     make_auth_headers,
-    safe_json,
     safe_response_json,
-    update_doc_if_exists,
     validate_webhook_secret,
 )
+from shipment_tracking.services.statuses import safe_json, update_doc_if_exists
 
 
 REATTEMPT_ISSUE_TYPE = "Request for Reattempt Delivery"
@@ -31,7 +31,7 @@ HUB_ADDRESS_COOLDOWN_HOURS = 12
 
 
 def is_support_ticket_enabled() -> bool:
-    settings = get_settings()
+    settings = legacy_settings()
     return bool(cint(getattr(settings, "enabled", 0)) and cint(getattr(settings, "enable_support_ticket", 0)))
 
 
@@ -41,10 +41,17 @@ def assert_support_ticket_enabled():
 
 
 @frappe.whitelist()
-def get_support_ticket_ui_settings():
-    return {
-        "enable_support_ticket": is_support_ticket_enabled(),
-    }
+def get_support_ticket_ui_settings(invoice_name=None, encounter_name=None):
+    reference = None
+    if invoice_name or encounter_name:
+        reference = frappe.get_doc("Sales Invoice" if invoice_name else "Patient Encounter", invoice_name or encounter_name)
+        reference.check_permission("read")
+        from .accounts import get_account, reference_account
+        account = frappe.get_doc("Shipkia Account", reference_account(reference))
+        return {"enable_support_ticket": bool(account.platform == "Legacy" and account.allow_existing_operations and account.get("enable_support_ticket"))}
+    settings = legacy_settings()
+    return {"enable_support_ticket": bool(settings.get("enable_support_ticket"))}
+
 
 
 def get_support_ticket_permission_query(user: str | None = None) -> str:
@@ -141,7 +148,7 @@ def refresh_support_ticket(ticket_name: str):
     if not ticket.ticket_id:
         frappe.throw("Support ticket has no Shipkia Ticket ID.")
 
-    settings = get_enabled_settings()
+    settings = legacy_settings(ticket)
     url = support_url(settings, "support_get_url", "shipbu.api.admin.support.get_support_ticket")
 
     throttle_support_api()
@@ -176,7 +183,7 @@ def refresh_support_ticket(ticket_name: str):
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def support_ticket_update(payload: Any | None = None):
-    settings = get_settings()
+    settings = legacy_settings()
     assert_support_ticket_enabled()
     validate_webhook_secret(settings)
     raw_payload = payload if payload is not None else (frappe.request.get_json() or {})
@@ -218,7 +225,7 @@ def create_support_ticket(reference, issue_type: str, message: str):
     if issue_type == HUB_ADDRESS_ISSUE_TYPE:
         assert_hub_address_allowed(order_id)
 
-    settings = get_enabled_settings()
+    settings = legacy_settings(reference)
     url = support_url(settings, "support_create_url", "shipbu.api.admin.support.create_support_ticket")
     payload = {
         "issue_type": issue_type,
@@ -268,7 +275,7 @@ def create_support_ticket(reference, issue_type: str, message: str):
 
 def get_enabled_settings():
     assert_support_ticket_enabled()
-    settings = get_settings()
+    settings = legacy_settings()
     if not settings.enabled:
         frappe.throw("Shipment Tracking is disabled in settings.")
     return settings
@@ -317,7 +324,7 @@ def get_reference_for_invoice(invoice_name: str):
 
     shipment_name = (
         getattr(invoice, "si_shipkia_shipment", None)
-        or frappe.db.get_value("Shipment Tracking Shipment", {"sales_invoice": invoice_name}, "name")
+        or frappe.db.get_value("Shipment Tracking Shipment", {"sales_invoice": invoice_name, "shipkia_account": LEGACY_ACCOUNT}, "name")
     )
     if not shipment_name:
         if getattr(invoice, "si_shipkia_order_id", None):
@@ -332,7 +339,7 @@ def get_reference_for_encounter(encounter_name: str):
 
     shipment_name = (
         getattr(encounter, "pe_shipkia_shipment", None)
-        or frappe.db.get_value("Shipment Tracking Shipment", {"patient_encounter": encounter_name}, "name")
+        or frappe.db.get_value("Shipment Tracking Shipment", {"patient_encounter": encounter_name, "shipkia_account": LEGACY_ACCOUNT}, "name")
     )
     if not shipment_name:
         if getattr(encounter, "pe_shipkia_order_id", None):
@@ -342,6 +349,8 @@ def get_reference_for_encounter(encounter_name: str):
 
 
 def get_reference_order_id(reference) -> str:
+    if reference is None:
+        return ""
     return cstr(
         getattr(reference, "shipkia_order_id", None)
         or getattr(reference, "si_shipkia_order_id", None)
@@ -350,6 +359,7 @@ def get_reference_order_id(reference) -> str:
 
 
 def get_support_state(reference) -> dict[str, Any]:
+    legacy_settings(reference)
     order_id = get_reference_order_id(reference)
     latest_ticket = latest_visible_ticket(order_id)
     cooldown = get_hub_address_cooldown(order_id)
@@ -373,6 +383,9 @@ def get_support_state(reference) -> dict[str, Any]:
 def get_existing_support_state(reference, latest_ticket_name: str | None = None) -> dict[str, Any]:
     if restricted_support():
         return linked_support_summary(reference, latest_ticket_name)
+    account_name = reference_account(reference)
+    if frappe.db.get_value("Shipkia Account", account_name, "platform") != "Legacy":
+        return {"success": True, "read_only": True, "has_existing_ticket": False}
     order_id = get_reference_order_id(reference)
     latest_ticket = existing_visible_ticket(order_id, latest_ticket_name)
 
@@ -404,7 +417,7 @@ def latest_visible_ticket(order_id: str):
     if not order_id:
         return None
 
-    filters = {"shipkia_order_id": order_id}
+    filters = {"shipkia_order_id": order_id, "shipkia_account": LEGACY_ACCOUNT}
     if "System Manager" not in frappe.get_roles() and frappe.session.user != "Administrator":
         filters["owner"] = frappe.session.user
 
@@ -532,13 +545,13 @@ def support_error(body: dict[str, Any]) -> str:
 def upsert_local_ticket(reference, issue_type: str, message: str, body: dict[str, Any]):
     data = support_data(body)
     ticket_id = data.get("id")
-    ticket_name = frappe.db.get_value("Shipment Tracking Support Ticket", {"ticket_id": ticket_id}, "name")
+    ticket_name = frappe.db.get_value("Shipment Tracking Support Ticket", {"ticket_id": ticket_id, "shipkia_account": LEGACY_ACCOUNT}, "name")
 
     if ticket_name:
         ticket = frappe.get_doc("Shipment Tracking Support Ticket", ticket_name)
         validate_read_permission(ticket)
     else:
-        ticket = frappe.get_doc({"doctype": "Shipment Tracking Support Ticket"})
+        ticket = frappe.get_doc({"doctype": "Shipment Tracking Support Ticket", "shipkia_account": LEGACY_ACCOUNT})
         ticket.owner = frappe.session.user
 
     ticket.ticket_id = ticket_id
@@ -568,7 +581,7 @@ def upsert_local_ticket(reference, issue_type: str, message: str, body: dict[str
 def upsert_ticket_from_support_update(data: dict[str, Any], raw_payload: Any, ticket=None, webhook_hash: str | None = None):
     ticket = ticket or find_support_ticket_for_update(data)
     if not ticket:
-        ticket = frappe.get_doc({"doctype": "Shipment Tracking Support Ticket"})
+        ticket = frappe.get_doc({"doctype": "Shipment Tracking Support Ticket", "shipkia_account": LEGACY_ACCOUNT})
 
     reference = get_reference_for_support_update(data)
     ticket.ticket_id = cstr(data.get("ticket_id") or data.get("id") or ticket.ticket_id).strip()
@@ -674,15 +687,15 @@ def find_support_ticket_for_update(data: dict[str, Any]):
             continue
         if fieldname == "partner_ticket_id" and not frappe.get_meta("Shipment Tracking Support Ticket").has_field(fieldname):
             continue
-        name = frappe.db.get_value("Shipment Tracking Support Ticket", {fieldname: value}, "name")
+        name = frappe.db.get_value("Shipment Tracking Support Ticket", {fieldname: value, "shipkia_account": LEGACY_ACCOUNT}, "name")
         if name:
             return frappe.get_doc("Shipment Tracking Support Ticket", name)
 
     order_id = cstr(data.get("record_id")).strip()
     awb = cstr(data.get("awb") or data.get("awb_number")).strip()
     for filters in (
-        {"shipkia_order_id": order_id} if order_id else None,
-        {"awb_number": awb} if awb else None,
+        {"shipkia_order_id": order_id, "shipkia_account": LEGACY_ACCOUNT} if order_id else None,
+        {"awb_number": awb, "shipkia_account": LEGACY_ACCOUNT} if awb else None,
     ):
         if not filters:
             continue
@@ -701,31 +714,16 @@ def find_support_ticket_for_update(data: dict[str, Any]):
 def get_reference_for_support_update(data: dict[str, Any]):
     order_id = cstr(data.get("record_id")).strip()
     awb = cstr(data.get("awb") or data.get("awb_number")).strip()
-
-    shipment_name = None
-    if order_id:
-        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"shipkia_order_id": order_id}, "name")
-    if not shipment_name and awb:
-        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"shipkia_awb_number": awb}, "name")
-    if shipment_name:
-        return frappe.get_doc("Shipment Tracking Shipment", shipment_name)
-
-    invoice_name = None
-    if order_id:
-        invoice_name = frappe.db.get_value("Sales Invoice", {"si_shipkia_order_id": order_id}, "name")
-    if not invoice_name and awb:
-        invoice_name = frappe.db.get_value("Sales Invoice", {"si_shipkia_awb_number": awb}, "name")
-    if invoice_name:
-        return frappe.get_doc("Sales Invoice", invoice_name)
-
-    encounter_name = None
-    if order_id:
-        encounter_name = frappe.db.get_value("Patient Encounter", {"pe_shipkia_order_id": order_id}, "name")
-    if not encounter_name and awb:
-        encounter_name = frappe.db.get_value("Patient Encounter", {"pe_shipkia_awb_number": awb}, "name")
-    if encounter_name:
-        return frappe.get_doc("Patient Encounter", encounter_name)
-
+    for filters in ({"shipkia_order_id": order_id} if order_id else None,
+                    {"shipkia_awb_number": awb} if awb else None):
+        if not filters:
+            continue
+        filters["shipkia_account"] = LEGACY_ACCOUNT
+        names = frappe.get_all("Shipment Tracking Shipment", filters=filters, pluck="name", limit=2)
+        if len(names) > 1:
+            frappe.throw("Ambiguous Legacy shipment; review support update ownership.")
+        if names:
+            return frappe.get_doc("Shipment Tracking Shipment", names[0])
     return None
 
 
@@ -737,7 +735,7 @@ def fill_missing_support_links(ticket):
         return
 
     if ticket.sales_invoice and frappe.db.exists("Sales Invoice", ticket.sales_invoice):
-        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"sales_invoice": ticket.sales_invoice}, "name")
+        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"sales_invoice": ticket.sales_invoice, "shipkia_account": LEGACY_ACCOUNT}, "name")
         if shipment_name:
             ticket.shipment = shipment_name
             shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
@@ -745,7 +743,7 @@ def fill_missing_support_links(ticket):
             return
 
     if ticket.patient_encounter and frappe.db.exists("Patient Encounter", ticket.patient_encounter):
-        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"patient_encounter": ticket.patient_encounter}, "name")
+        shipment_name = frappe.db.get_value("Shipment Tracking Shipment", {"patient_encounter": ticket.patient_encounter, "shipkia_account": LEGACY_ACCOUNT}, "name")
         if shipment_name:
             ticket.shipment = shipment_name
             shipment = frappe.get_doc("Shipment Tracking Shipment", shipment_name)
@@ -861,7 +859,9 @@ def mirror_support_fields(ticket):
         if key != "latest_support_ticket"
     }
     si_values["si_latest_support_ticket"] = ticket.name
-    update_doc_if_exists("Sales Invoice", ticket.sales_invoice, si_values)
+    current = frappe.db.get_value("Sales Invoice", ticket.sales_invoice, "si_shipkia_shipment") if ticket.sales_invoice else None
+    if not current or current == ticket.shipment:
+        update_doc_if_exists("Sales Invoice", ticket.sales_invoice, si_values)
 
     pe_values = {
         f"pe_{key}": value
@@ -869,7 +869,9 @@ def mirror_support_fields(ticket):
         if key != "latest_support_ticket"
     }
     pe_values["pe_latest_support_ticket"] = ticket.name
-    update_doc_if_exists("Patient Encounter", ticket.patient_encounter, pe_values)
+    current = frappe.db.get_value("Patient Encounter", ticket.patient_encounter, "pe_shipkia_shipment") if ticket.patient_encounter else None
+    if not current or current == ticket.shipment:
+        update_doc_if_exists("Patient Encounter", ticket.patient_encounter, pe_values)
 
 
 def add_support_response_comment(reference, ticket, action: str):
@@ -955,6 +957,7 @@ def log_support_ticket_update(ticket, raw_payload: Any, data: dict[str, Any], wa
     log = frappe.get_doc(
         {
             "doctype": "Shipment Tracking Sync Log",
+            "shipkia_account": LEGACY_ACCOUNT,
             "direction": "Inbound",
             "action": "Support Ticket Update",
             "reference_doctype": "Shipment Tracking Support Ticket",
@@ -1004,6 +1007,7 @@ def make_support_log(action: str, reference, payload: dict[str, Any]):
     return frappe.get_doc(
         {
             "doctype": "Shipment Tracking Sync Log",
+            "shipkia_account": LEGACY_ACCOUNT,
             "direction": "Outbound",
             "action": action,
             "reference_doctype": reference_doctype,

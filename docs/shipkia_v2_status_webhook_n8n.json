@@ -1,0 +1,50 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REPLACE_WITH_ERPNEXT_HOST/api/method/shipment_tracking.api.v2.order_webhook.order_status_update",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Webhook-Secret",
+              "value": "REPLACE_WITH_DEDICATED_WEBHOOK_SECRET"
+            },
+            {
+              "name": "X-Shipkia-Event-Id",
+              "value": "={{ $json.headers[\"x-shipkia-event-id\"] }}"
+            },
+            {
+              "name": "X-Shipkia-Event",
+              "value": "={{ $json.headers[\"x-shipkia-event\"] }}"
+            },
+            {
+              "name": "X-Shipkia-Record-Event",
+              "value": "={{ $json.headers[\"x-shipkia-record-event\"] }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "shipkia-v2-erpnext-status-update",
+      "name": "Update ERPNext - New OMS"
+    }
+  ],
+  "connections": {},
+  "pinData": {},
+  "meta": {}
+}

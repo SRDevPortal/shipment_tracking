@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Shipment Tracking</b></span>\", \"col\": 12}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Shipments\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Support Tickets\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Sync Logs\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Settings\", \"col\": 3}}]",
+ "content": "[{\"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick Access</b></span>\", \"col\": 12}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Shipments\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Shipkia Accounts\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Sync Logs\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Settings\", \"col\": 3}}, {\"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Shipment Tracking</b></span>\", \"col\": 12}}, {\"type\": \"card\", \"data\": {\"card_name\": \"Operations\", \"col\": 4}}, {\"type\": \"card\", \"data\": {\"card_name\": \"Monitoring\", \"col\": 4}}, {\"type\": \"card\", \"data\": {\"card_name\": \"Configuration\", \"col\": 4}}]",
  "creation": "2026-04-06 14:00:45.258999",
  "custom_blocks": [],
  "docstatus": 0,
@@ -16,7 +16,7 @@
    "hidden": 0,
    "icon": "stock",
    "is_query_report": 0,
-   "label": "Shipment Management",
+   "label": "Operations",
    "link_count": 0,
    "link_type": "DocType",
    "onboard": 0,
@@ -44,9 +44,9 @@
   },
   {
    "hidden": 0,
-   "icon": "file-text",
+   "icon": "activity",
    "is_query_report": 0,
-   "label": "Logs",
+   "label": "Monitoring",
    "link_count": 0,
    "link_type": "DocType",
    "onboard": 0,
@@ -64,6 +64,16 @@
   },
   {
    "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Notifications",
+   "link_count": 0,
+   "link_to": "Shipment WhatsApp Notification",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
    "icon": "settings",
    "is_query_report": 0,
    "label": "Configuration",
@@ -71,6 +81,16 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shipkia Accounts",
+   "link_count": 0,
+   "link_to": "Shipkia Account",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   },
   {
    "hidden": 0,
@@ -83,7 +103,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-06-26 19:09:34.340850",
+ "modified": "2026-10-23 11:55:32.075556",
  "modified_by": "Administrator",
  "module": "Shipment Tracking",
  "name": "Shipment Tracking",
@@ -102,10 +122,10 @@
    "type": "DocType"
   },
   {
-   "color": "Red",
+   "color": "Green",
    "doc_view": "List",
-   "label": "Support Tickets",
-   "link_to": "Shipment Tracking Support Ticket",
+   "label": "Shipkia Accounts",
+   "link_to": "Shipkia Account",
    "type": "DocType"
   },
   {
@@ -116,7 +136,7 @@
    "type": "DocType"
   },
   {
-   "color": "Green",
+   "color": "Grey",
    "doc_view": "",
    "label": "Settings",
    "link_to": "Shipment Tracking Settings",

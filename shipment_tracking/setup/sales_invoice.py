@@ -100,6 +100,14 @@ def apply():
                     "insert_after": "si_shipkia_delivered_on",
                 },
                 {
+                    "fieldname": "si_courier_partner_mode",
+                    "label": "Courier Mode",
+                    "fieldtype": "Data",
+                    "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
+                    "insert_after": "si_delivery_partner",
+                },
+                {
                     "fieldname": "si_shipkia_shipment",
                     "label": "Shipment Record",
                     "fieldtype": "Link",
@@ -107,7 +115,7 @@ def apply():
                     "read_only": 1,
                     "search_index": 1,
                     "depends_on": SHIPMENT_EXISTS,
-                    "insert_after": "si_delivery_partner",
+                    "insert_after": "si_courier_partner_mode",
                 },
                 {
                     "fieldname": "si_support_ticket_column",

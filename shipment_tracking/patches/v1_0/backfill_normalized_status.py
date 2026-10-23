@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import frappe
 
-from shipment_tracking.api.utils import normalize_tracking_status
+from shipment_tracking.services.statuses import normalize_tracking_status
 
 
 BATCH_SIZE = 500

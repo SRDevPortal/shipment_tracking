@@ -12,6 +12,7 @@ def setup_all(skip_reload=False):
         # --------------------------------------------------
         if not skip_reload:
             doctypes = [
+                "shipkia_account",
                 "shipment_tracking_settings",
                 "shipment_tracking_shipment",
                 "shipment_tracking_shipment_event",
@@ -26,6 +27,8 @@ def setup_all(skip_reload=False):
         # --------------------------------------------------
         # 2. Apply customizations
         # --------------------------------------------------
+        from shipment_tracking.patches.v2_0.account_ownership import execute
+        execute()
         apply_sales_invoice()
         apply_patient_encounter()
 

@@ -8,30 +8,12 @@ class ShipmentTrackingSettings(Document):
         self.whatsapp_notification_engine = (
             getattr(self, "whatsapp_notification_engine", None) or "Legacy Shipment Tracking"
         )
-        if cint(self.enabled):
-            self.require_value("create_order_url", "Create Order URL")
-            self.require_value("pickup_address", "Pickup Address")
-            self.require_value("order_channel", "Order Channel")
-            self.require_password("api_key", "API Key")
-            self.require_password("api_secret", "API Secret")
-
-        if cint(self.enable_manual_tracking_refresh):
-            self.require_value("tracking_url", "Tracking URL")
-
-        if cint(self.enable_webhook_security):
-            self.require_password("webhook_secret", "Webhook Secret")
-
-        if cint(self.enable_support_ticket):
-            if not cint(self.enabled):
-                frappe.throw("Enable Shipment Tracking before enabling Support Ticket.")
-            if not self.support_create_url and not self.has_support_url_fallback():
-                frappe.throw(
-                    "Support Create URL is required when Support Ticket is enabled unless a base API URL can be derived."
-                )
-            if not self.support_get_url and not self.has_support_url_fallback():
-                frappe.throw(
-                    "Support Get URL is required when Support Ticket is enabled unless a base API URL can be derived."
-                )
+        if cint(self.enabled) and not getattr(self, "default_shipkia_account", None):
+            frappe.throw("Choose a default Shipkia Account.")
+        if getattr(self, "default_shipkia_account", None):
+            account = frappe.get_doc("Shipkia Account", self.default_shipkia_account)
+            if not account.allow_new_orders:
+                frappe.throw("Default Shipkia Account must allow new orders.")
 
         if self.whatsapp_notification_engine == "Patient Notification Hub":
             self.validate_patient_notification_hub()

@@ -1,26 +1,47 @@
 import json
 
 import frappe
-from frappe.utils import cint
 
 
 WORKSPACE_NAME = "Shipment Tracking"
 ICON_NAME = "stock"
 
+SHORTCUTS = (
+    ("Shipments", "Shipment Tracking Shipment", "List", "Blue"),
+    ("Shipkia Accounts", "Shipkia Account", "List", "Green"),
+    ("Sync Logs", "Shipment Tracking Sync Log", "List", "Orange"),
+    ("Settings", "Shipment Tracking Settings", "", "Grey"),
+)
 
-def is_support_ticket_enabled():
-    try:
-        if not frappe.db.exists("DocType", "Shipment Tracking Settings"):
-            return False
-        settings = frappe.get_single("Shipment Tracking Settings")
-        return bool(cint(getattr(settings, "enabled", 0)) and cint(getattr(settings, "enable_support_ticket", 0)))
-    except Exception:
-        return False
+CARDS = (
+    (
+        "Operations",
+        "stock",
+        (
+            ("Shipments", "Shipment Tracking Shipment"),
+            ("Support Tickets", "Shipment Tracking Support Ticket"),
+        ),
+    ),
+    (
+        "Monitoring",
+        "activity",
+        (
+            ("Sync Logs", "Shipment Tracking Sync Log"),
+            ("WhatsApp Notifications", "Shipment WhatsApp Notification"),
+        ),
+    ),
+    (
+        "Configuration",
+        "settings",
+        (
+            ("Shipkia Accounts", "Shipkia Account"),
+            ("Settings", "Shipment Tracking Settings"),
+        ),
+    ),
+)
 
 
 def create_workspace():
-    support_ticket_enabled = is_support_ticket_enabled()
-
     if frappe.db.exists("Workspace", WORKSPACE_NAME):
         doc = frappe.get_doc("Workspace", WORKSPACE_NAME)
     else:
@@ -37,133 +58,76 @@ def create_workspace():
     doc.category = "Modules"
     doc.sequence_id = 998
     doc.hide_custom = 0
+
     content = [
         {
             "type": "header",
             "data": {
-                "text": '<span class="h4"><b>Shipment Tracking</b></span>',
+                "text": '<span class="h4"><b>Quick Access</b></span>',
                 "col": 12,
             },
         },
+    ]
+    content.extend(
         {
             "type": "shortcut",
-            "data": {
-                "shortcut_name": "Shipments",
-                "col": 3,
-            },
-        },
-    ]
-    if support_ticket_enabled:
-        content.append(
-            {
-                "type": "shortcut",
-                "data": {
-                    "shortcut_name": "Support Tickets",
-                    "col": 3,
-                },
-            }
-        )
+            "data": {"shortcut_name": label, "col": 3},
+        }
+        for label, _doctype, _view, _color in SHORTCUTS
+    )
     content.extend(
         [
+            {"type": "spacer", "data": {"col": 12}},
             {
-                "type": "shortcut",
+                "type": "header",
                 "data": {
-                    "shortcut_name": "Sync Logs",
-                    "col": 3,
-                },
-            },
-            {
-                "type": "shortcut",
-                "data": {
-                    "shortcut_name": "Settings",
-                    "col": 3,
+                    "text": '<span class="h4"><b>Shipment Tracking</b></span>',
+                    "col": 12,
                 },
             },
         ]
     )
+    content.extend(
+        {
+            "type": "card",
+            "data": {"card_name": label, "col": 4},
+        }
+        for label, _icon, _links in CARDS
+    )
     doc.content = json.dumps(content)
 
     doc.set("shortcuts", [])
-
-    doc.append("shortcuts", {
-        "type": "DocType",
-        "link_to": "Shipment Tracking Shipment",
-        "label": "Shipments",
-        "doc_view": "List",
-        "color": "Blue"
-    })
-
-    if support_ticket_enabled:
-        doc.append("shortcuts", {
-            "type": "DocType",
-            "link_to": "Shipment Tracking Support Ticket",
-            "label": "Support Tickets",
-            "doc_view": "List",
-            "color": "Red"
-        })
-
-    doc.append("shortcuts", {
-        "type": "DocType",
-        "link_to": "Shipment Tracking Sync Log",
-        "label": "Sync Logs",
-        "doc_view": "List",
-        "color": "Orange"
-    })
-
-    doc.append("shortcuts", {
-        "type": "DocType",
-        "link_to": "Shipment Tracking Settings",
-        "label": "Settings",
-        "color": "Green"
-    })
+    for label, doctype, view, color in SHORTCUTS:
+        doc.append(
+            "shortcuts",
+            {
+                "type": "DocType",
+                "link_to": doctype,
+                "label": label,
+                "doc_view": view,
+                "color": color,
+            },
+        )
 
     doc.set("links", [])
-
-    doc.append("links", {
-        "type": "Card Break",
-        "label": "Shipment Management",
-        "icon": ICON_NAME
-    })
-
-    doc.append("links", {
-        "type": "Link",
-        "label": "Shipments",
-        "link_type": "DocType",
-        "link_to": "Shipment Tracking Shipment"
-    })
-
-    if support_ticket_enabled:
-        doc.append("links", {
-            "type": "Link",
-            "label": "Support Tickets",
-            "link_type": "DocType",
-            "link_to": "Shipment Tracking Support Ticket"
-        })
-
-    doc.append("links", {
-        "type": "Card Break",
-        "label": "Logs",
-        "icon": "file-text"
-    })
-
-    doc.append("links", {
-        "type": "Link",
-        "label": "Sync Logs",
-        "link_type": "DocType",
-        "link_to": "Shipment Tracking Sync Log"
-    })
-
-    doc.append("links", {
-        "type": "Card Break",
-        "label": "Configuration",
-        "icon": "settings"
-    })
-
-    doc.append("links", {
-        "type": "Link",
-        "label": "Settings",
-        "link_type": "DocType",
-        "link_to": "Shipment Tracking Settings"
-    })
+    for card_label, icon, links in CARDS:
+        doc.append(
+            "links",
+            {
+                "type": "Card Break",
+                "label": card_label,
+                "icon": icon,
+            },
+        )
+        for label, doctype in links:
+            doc.append(
+                "links",
+                {
+                    "type": "Link",
+                    "label": label,
+                    "link_type": "DocType",
+                    "link_to": doctype,
+                },
+            )
 
     doc.save(ignore_permissions=True)

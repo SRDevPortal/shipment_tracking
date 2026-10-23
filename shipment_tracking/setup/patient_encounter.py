@@ -85,13 +85,21 @@ def apply():
                     "insert_after": "pe_shipkia_delivered_on",
                 },
                 {
+                    "fieldname": "pe_courier_partner_mode",
+                    "label": "Courier Mode",
+                    "fieldtype": "Data",
+                    "read_only": 1,
+                    "depends_on": SHIPMENT_EXISTS,
+                    "insert_after": "pe_delivery_partner",
+                },
+                {
                     "fieldname": "pe_shipkia_shipment",
                     "label": "Shipment Record",
                     "fieldtype": "Link",
                     "options": "Shipment Tracking Shipment",
                     "read_only": 1,
                     "depends_on": SHIPMENT_EXISTS,
-                    "insert_after": "pe_delivery_partner",
+                    "insert_after": "pe_courier_partner_mode",
                 },
                 {
                     "fieldname": "pe_support_ticket_column",

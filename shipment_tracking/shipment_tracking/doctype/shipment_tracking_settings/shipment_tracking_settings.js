@@ -36,3 +36,13 @@ function toggle_legacy_notification_fields(frm) {
 	];
 	fields.forEach((fieldname) => frm.toggle_display(fieldname, legacy));
 }
+
+frappe.ui.form.on("Shipment Tracking Settings", {
+    refresh(frm) {
+        frm.set_query("default_shipkia_account", () => ({filters: {allow_new_orders: 1}}));
+        frm.fields_dict.configured_accounts.$wrapper.html(
+            `<div class="alert alert-info">New orders use the default account. Existing shipments keep their original account. Switching accounts never resends orders.</div>
+            <a class="btn btn-default" href="/app/shipkia-account">Configure Shipkia accounts</a>`
+        );
+    }
+});

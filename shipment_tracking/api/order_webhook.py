@@ -3,35 +3,12 @@ from __future__ import annotations
 import frappe
 from frappe.utils import get_datetime
 
-from .utils import normalize_tracking_status, validate_webhook_secret
-from .tracking import get_linked_encounter, get_or_create_shipment, mirror_summary_fields, repair_shipment_links
-
-
-def extract_webhook_body(payload):
-    if isinstance(payload, list):
-        payload = payload[0] if payload else {}
-
-    if isinstance(payload, dict) and isinstance(payload.get("body"), dict):
-        return payload.get("body") or {}
-
-    return payload if isinstance(payload, dict) else {}
-
-
-def clean(value):
-    if value is None:
-        return None
-
-    value = str(value).strip()
-    return None if value.lower() in ("", "none", "null") else value
-
-
-def first_clean_value(data, *fieldnames):
-    for fieldname in fieldnames:
-        value = clean(data.get(fieldname))
-        if value:
-            return value
-
-    return None
+from .legacy_utils import validate_webhook_secret
+from shipment_tracking.services.statuses import normalize_tracking_status
+from .webhook_utils import clean, extract_webhook_body, first_clean_value
+from .accounts import legacy_settings, LEGACY_ACCOUNT
+from .tracking import repair_shipment_links
+from shipment_tracking.services.shipments import mirror_summary_fields
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -43,7 +20,7 @@ def order_status_update():
     # -----------------------------
     # 🔐 SECURITY (WITH TOGGLE)
     # -----------------------------
-    settings = frappe.get_single("Shipment Tracking Settings")
+    settings = legacy_settings()
 
     validate_webhook_secret(settings)
 
@@ -66,12 +43,15 @@ def order_status_update():
     # -----------------------------
     si = None
     encounter = None
-    sales_invoice = frappe.db.get_value("Sales Invoice", {"si_shipkia_order_id": order_id}, "name")
-    if sales_invoice:
-        si = frappe.get_doc("Sales Invoice", sales_invoice)
-        encounter = get_linked_encounter(si)
+    matches = frappe.get_all("Shipment Tracking Shipment", filters={"shipkia_account": LEGACY_ACCOUNT, "shipkia_order_id": order_id}, pluck="name", limit=2)
+    if len(matches) != 1:
+        frappe.throw("Webhook order ownership is missing or ambiguous; review the shipment.")
+    shipment = frappe.get_doc("Shipment Tracking Shipment", matches[0])
+    if shipment.sales_invoice:
+        si = frappe.get_doc("Sales Invoice", shipment.sales_invoice)
+    if shipment.patient_encounter:
+        encounter = frappe.get_doc("Patient Encounter", shipment.patient_encounter)
 
-    shipment = get_or_create_shipment(si=si, encounter=encounter, order_id=order_id)
     repair_shipment_links(shipment, si=si, encounter=encounter, order_id=order_id)
 
     # -----------------------------

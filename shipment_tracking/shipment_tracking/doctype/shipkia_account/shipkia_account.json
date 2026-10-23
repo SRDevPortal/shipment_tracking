@@ -1,0 +1,251 @@
+{
+  "doctype": "DocType",
+  "name": "Shipkia Account",
+  "module": "Shipment Tracking",
+  "autoname": "prompt",
+  "engine": "InnoDB",
+  "track_changes": 1,
+  "field_order": [
+    "connection_tab",
+    "platform",
+    "allow_new_orders",
+    "allow_existing_operations",
+    "api_key",
+    "api_secret",
+    "api_base_url",
+    "create_order_url",
+    "pickup_address",
+    "order_channel",
+    "v2_contract_verified",
+    "v2_order_id_path",
+    "tracking_tab",
+    "enable_manual_tracking_refresh",
+    "order_details_url",
+    "order_tracking_url",
+    "webhook_security_tab",
+    "enable_webhook_security",
+    "webhook_secret",
+    "support_tab",
+    "enable_support_ticket",
+    "support_create_url",
+    "support_update_url",
+    "support_get_url",
+    "support_list_url",
+    "parcel_defaults_tab",
+    "default_parcel_length",
+    "default_parcel_breadth",
+    "default_parcel_height",
+    "default_dead_weight",
+    "default_volumetric_weight",
+    "legacy_configuration_migrated",
+    "default_hsn_code"
+  ],
+  "fields": [
+    {
+      "fieldname": "connection_tab",
+      "fieldtype": "Tab Break",
+      "label": "Connection"
+    },
+    {
+      "fieldname": "platform",
+      "fieldtype": "Select",
+      "label": "Platform",
+      "options": "Legacy\nNew OMS",
+      "reqd": 1
+    },
+    {
+      "fieldname": "allow_new_orders",
+      "fieldtype": "Check",
+      "label": "Allow New Orders",
+      "default": "1"
+    },
+    {
+      "fieldname": "allow_existing_operations",
+      "fieldtype": "Check",
+      "label": "Allow Existing Operations",
+      "default": "1"
+    },
+    {
+      "fieldname": "api_key",
+      "fieldtype": "Password",
+      "label": "Api Key"
+    },
+    {
+      "fieldname": "api_secret",
+      "fieldtype": "Password",
+      "label": "Api Secret",
+      "depends_on": "eval:doc.platform==\"Legacy\""
+    },
+    {
+      "fieldname": "api_base_url",
+      "fieldtype": "Data",
+      "label": "Api Base Url"
+    },
+    {
+      "fieldname": "create_order_url",
+      "fieldtype": "Data",
+      "label": "Create Order Url"
+    },
+    {
+      "fieldname": "pickup_address",
+      "fieldtype": "Data",
+      "label": "Pickup Address"
+    },
+    {
+      "fieldname": "order_channel",
+      "fieldtype": "Data",
+      "label": "Order Channel"
+    },
+    {
+      "fieldname": "v2_contract_verified",
+      "fieldtype": "Check",
+      "label": "V2 Contract Verified",
+      "description": "Enable only after Shipkia confirms the JSON request format, rupee amounts, parcel units, response ID path and server-managed products."
+    },
+    {
+      "fieldname": "v2_order_id_path",
+      "fieldtype": "Data",
+      "label": "V2 Order Id Path",
+      "default": "result.id"
+    },
+    {
+      "fieldname": "tracking_tab",
+      "fieldtype": "Tab Break",
+      "label": "Tracking"
+    },
+    {
+      "fieldname": "enable_manual_tracking_refresh",
+      "fieldtype": "Check",
+      "label": "Enable Tracking"
+    },
+    {
+      "fieldname": "order_details_url",
+      "fieldtype": "Data",
+      "label": "Order Details URL",
+      "depends_on": "eval:doc.enable_manual_tracking_refresh && doc.platform==\"New OMS\"",
+      "mandatory_depends_on": "eval:doc.enable_manual_tracking_refresh && doc.platform==\"New OMS\"",
+      "description": "Base endpoint without the order ID. ERPNext appends /{order_id}."
+    },
+    {
+      "fieldname": "order_tracking_url",
+      "fieldtype": "Data",
+      "label": "Order Tracking URL",
+      "depends_on": "eval:doc.enable_manual_tracking_refresh",
+      "mandatory_depends_on": "eval:doc.enable_manual_tracking_refresh"
+    },
+    {
+      "fieldname": "webhook_security_tab",
+      "fieldtype": "Tab Break",
+      "label": "Webhook Security"
+    },
+    {
+      "fieldname": "enable_webhook_security",
+      "fieldtype": "Check",
+      "label": "Enable Webhook Security"
+    },
+    {
+      "fieldname": "webhook_secret",
+      "fieldtype": "Password",
+      "label": "Webhook Secret",
+      "depends_on": "eval:doc.enable_webhook_security",
+      "mandatory_depends_on": "eval:doc.enable_webhook_security"
+    },
+    {
+      "fieldname": "support_tab",
+      "fieldtype": "Tab Break",
+      "label": "Support"
+    },
+    {
+      "fieldname": "enable_support_ticket",
+      "fieldtype": "Check",
+      "label": "Enable Support Ticket"
+    },
+    {
+      "fieldname": "support_create_url",
+      "fieldtype": "Data",
+      "label": "Support Create Url",
+      "depends_on": "eval:doc.enable_support_ticket",
+      "mandatory_depends_on": "eval:doc.enable_support_ticket"
+    },
+    {
+      "fieldname": "support_update_url",
+      "fieldtype": "Data",
+      "label": "Support Update Url",
+      "depends_on": "eval:doc.enable_support_ticket",
+      "description": "Optional. Not used by the current support create/refresh flow."
+    },
+    {
+      "fieldname": "support_get_url",
+      "fieldtype": "Data",
+      "label": "Support Get Url",
+      "depends_on": "eval:doc.enable_support_ticket",
+      "mandatory_depends_on": "eval:doc.enable_support_ticket"
+    },
+    {
+      "fieldname": "support_list_url",
+      "fieldtype": "Data",
+      "label": "Support List Url",
+      "depends_on": "eval:doc.enable_support_ticket",
+      "description": "Optional. Not used by the current support create/refresh flow."
+    },
+    {
+      "fieldname": "parcel_defaults_tab",
+      "fieldtype": "Tab Break",
+      "label": "Parcel Defaults"
+    },
+    {
+      "fieldname": "default_parcel_length",
+      "fieldtype": "Float",
+      "label": "Default Parcel Length",
+      "description": "Optional. Sent to New OMS when provided; dimensions must be at least 10 cm."
+    },
+    {
+      "fieldname": "default_parcel_breadth",
+      "fieldtype": "Float",
+      "label": "Default Parcel Breadth",
+      "description": "Optional. Sent to New OMS when provided; dimensions must be at least 10 cm."
+    },
+    {
+      "fieldname": "default_parcel_height",
+      "fieldtype": "Float",
+      "label": "Default Parcel Height",
+      "description": "Optional. Sent to New OMS when provided; dimensions must be at least 10 cm."
+    },
+    {
+      "fieldname": "default_dead_weight",
+      "fieldtype": "Float",
+      "label": "Default Dead Weight",
+      "description": "Optional. Sent to New OMS when provided; weight must be greater than zero."
+    },
+    {
+      "fieldname": "default_volumetric_weight",
+      "fieldtype": "Float",
+      "label": "Default Volumetric Weight",
+      "default": "1",
+      "depends_on": "eval:doc.platform!=\"New OMS\""
+    },
+    {
+      "fieldname": "legacy_configuration_migrated",
+      "fieldtype": "Check",
+      "hidden": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "default_hsn_code",
+      "fieldtype": "Data",
+      "label": "Default HSN Code",
+      "description": "Used when the invoice item has no HSN code. No product mapping is needed."
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 0,
+      "report": 1,
+      "export": 1
+    }
+  ]
+}
