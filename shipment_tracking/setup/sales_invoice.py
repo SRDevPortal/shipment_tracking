@@ -58,7 +58,7 @@ def apply():
                 {
                     "fieldname": "si_shipkia_stage",
                     "label": "Shipkia Stage",
-                    "fieldtype": "Data",
+                    "fieldtype": "Small Text",
                     "read_only": 1,
                     "depends_on": SHIPMENT_EXISTS,
                     "in_list_view": 1,
@@ -93,7 +93,7 @@ def apply():
                 {
                     "fieldname": "si_delivery_partner",
                     "label": "Courier Partner",
-                    "fieldtype": "Data",
+                    "fieldtype": "Small Text",
                     "read_only": 1,
                     "depends_on": SHIPMENT_EXISTS,
                     "in_list_view": 1,
@@ -102,7 +102,7 @@ def apply():
                 {
                     "fieldname": "si_courier_partner_mode",
                     "label": "Courier Mode",
-                    "fieldtype": "Data",
+                    "fieldtype": "Small Text",
                     "read_only": 1,
                     "depends_on": SHIPMENT_EXISTS,
                     "insert_after": "si_delivery_partner",
@@ -143,7 +143,7 @@ def apply():
                 {
                     "fieldname": "si_latest_support_ticket_id",
                     "label": "Latest Support Ticket ID",
-                    "fieldtype": "Data",
+                    "fieldtype": "Small Text",
                     "read_only": 1,
                     "hidden": 1,
                     "depends_on": SHIPMENT_EXISTS,
@@ -152,7 +152,7 @@ def apply():
                 {
                     "fieldname": "si_latest_support_issue_type",
                     "label": "Latest Support Issue Type",
-                    "fieldtype": "Data",
+                    "fieldtype": "Small Text",
                     "read_only": 1,
                     "hidden": 1,
                     "depends_on": SHIPMENT_EXISTS,
@@ -161,7 +161,7 @@ def apply():
                 {
                     "fieldname": "si_latest_support_stage",
                     "label": "Latest Support Stage",
-                    "fieldtype": "Data",
+                    "fieldtype": "Small Text",
                     "read_only": 1,
                     "hidden": 1,
                     "depends_on": SHIPMENT_EXISTS,
