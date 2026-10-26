@@ -255,3 +255,39 @@ class TestAccountRouting(TestCase):
         account = doc(name="New OMS", platform="New OMS")
         adapter = tracking._adapter_for(account)
         self.assertEqual(adapter.__name__, "shipment_tracking.api.v2.tracking")
+    def test_legacy_shipment_uses_default_new_oms_tracking_gateway(self):
+        from shipment_tracking.api import tracking
+
+        shipment = doc(shipkia_account="Legacy")
+        gateway = doc(name="New OMS", platform="New OMS")
+        settings = doc(default_shipkia_account="New OMS")
+        with (
+            patch.object(frappe, "get_single", return_value=settings),
+            patch.object(tracking, "get_account", return_value=gateway) as get_account,
+        ):
+            account = tracking._tracking_account_for_shipment(shipment)
+
+        self.assertIs(account, gateway)
+        get_account.assert_called_once_with("New OMS")
+
+    def test_legacy_shipment_sync_uses_v2_adapter(self):
+        from shipment_tracking.api import tracking
+        from shipment_tracking.api.v2 import tracking as v2_tracking
+        from shipment_tracking.services import tracking as tracking_service
+
+        shipment = doc(shipkia_account="Legacy")
+        gateway = doc(
+            name="New OMS",
+            platform="New OMS",
+            allow_existing_operations=1,
+            enable_manual_tracking_refresh=1,
+            order_tracking_url="https://api.shipkia.com/tracking",
+        )
+        with (
+            patch.object(tracking, "_tracking_account_for_shipment", return_value=gateway),
+            patch.object(tracking_service, "run", return_value={"success": True}) as run,
+        ):
+            result = tracking._sync_tracking(shipment)
+
+        self.assertTrue(result["success"])
+        run.assert_called_once_with(shipment, gateway, v2_tracking)

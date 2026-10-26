@@ -14,6 +14,19 @@ def _account_for_shipment(shipment):
         frappe.throw("Shipment account is unassigned. Ask an administrator to review ownership.")
     return get_account(shipment.shipkia_account)
 
+def _tracking_account_for_shipment(shipment):
+    if not shipment.shipkia_account:
+        frappe.throw("Shipment account is unassigned. Ask an administrator to review ownership.")
+
+    settings = frappe.get_single("Shipment Tracking Settings")
+    if settings.default_shipkia_account:
+        gateway_account = get_account(settings.default_shipkia_account)
+        if gateway_account.platform == "New OMS":
+            return gateway_account
+
+    # Sites that have not switched to New OMS retain historic per-account routing.
+    return _account_for_shipment(shipment)
+
 
 def _adapter_for(account):
     if account.platform == "Legacy":
@@ -70,7 +83,7 @@ def _validate_tracking_enabled(account):
 
 
 def _sync_tracking(shipment):
-    account = _account_for_shipment(shipment)
+    account = _tracking_account_for_shipment(shipment)
     _validate_tracking_enabled(account)
     from shipment_tracking.services.tracking import run
     return run(shipment, account, _adapter_for(account))
@@ -93,7 +106,7 @@ def get_tracking_ui_settings(invoice_name=None, encounter_name=None):
         )
         if not shipment:
             return {"enable_manual_tracking_refresh": False}
-        account = frappe.get_doc("Shipkia Account", shipment.shipkia_account)
+        account = _tracking_account_for_shipment(shipment)
         configured = bool(
             account.allow_existing_operations
             and account.enable_manual_tracking_refresh
@@ -114,6 +127,7 @@ def get_tracking_ui_settings(invoice_name=None, encounter_name=None):
             ),
             "account": account.name,
             "platform": account.platform,
+            "shipment_account": shipment.shipkia_account,
             "shipment": shipment.name,
             "order_id": shipment.shipkia_order_id,
             "tracking_id": shipment.shipkia_tracking_id,
@@ -342,7 +356,7 @@ def sync_active_shipments():
     for name in names:
         try:
             shipment = frappe.get_doc("Shipment Tracking Shipment", name)
-            account = _account_for_shipment(shipment)
+            account = _tracking_account_for_shipment(shipment)
             if account.enable_manual_tracking_refresh and account.allow_existing_operations:
                 _sync_tracking(shipment)
         except Exception:
@@ -362,7 +376,7 @@ def _check_tracking_for_reference(reference, is_invoice):
     if not shipment:
         frappe.throw("No shipment record is linked to this document.")
     shipment.check_permission("read")
-    account = _account_for_shipment(shipment)
+    account = _tracking_account_for_shipment(shipment)
     _validate_tracking_enabled(account)
     from shipment_tracking.services.tracking import check_for_updates
     return check_for_updates(shipment, account, _adapter_for(account))
