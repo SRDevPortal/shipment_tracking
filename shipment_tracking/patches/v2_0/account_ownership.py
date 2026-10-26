@@ -27,7 +27,10 @@ def execute():
                 if secret:
                     account.set(field, secret)
         account.legacy_configuration_migrated = 1
-        account.save(ignore_permissions=True)
+        if existed:
+            account.save(ignore_permissions=True)
+        else:
+            account.insert(ignore_permissions=True)
     if not settings.default_shipkia_account:
         frappe.db.set_single_value("Shipment Tracking Settings", "default_shipkia_account", "Legacy")
     frappe.db.set_single_value("Shipment Tracking Settings", "legacy_configuration_migrated", 1)
