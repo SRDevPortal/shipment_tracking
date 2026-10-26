@@ -22,29 +22,33 @@ def request_header(name):
 
 
 def get_owned_shipment(order_id):
-    account_names = frappe.get_all(
-        "Shipkia Account",
-        filters={"platform": "New OMS"},
-        pluck="name",
-    )
     names = frappe.get_all(
         "Shipment Tracking Shipment",
-        filters={
-            "shipkia_order_id": order_id,
-            "shipkia_account": ["in", account_names],
-        },
+        filters={"shipkia_order_id": order_id},
         pluck="name",
         limit=2,
     )
     if len(names) != 1:
         frappe.local.response["http_status_code"] = 404
-        frappe.throw("New OMS webhook order ownership is missing or ambiguous.")
-    shipment = frappe.get_doc("Shipment Tracking Shipment", names[0])
-    account = frappe.get_doc("Shipkia Account", shipment.shipkia_account)
-    if not cint(account.allow_existing_operations):
+        frappe.throw("Webhook order ownership is missing or ambiguous.")
+
+    settings = frappe.get_single("Shipment Tracking Settings")
+    if not settings.default_shipkia_account:
         frappe.local.response["http_status_code"] = 409
-        frappe.throw("Existing operations are disabled for this Shipkia account.")
-    return shipment, account
+        frappe.throw("Choose the default Shipkia Account in Shipment Tracking Settings.")
+    gateway_account = frappe.get_doc("Shipkia Account", settings.default_shipkia_account)
+    if gateway_account.platform != "New OMS":
+        frappe.local.response["http_status_code"] = 409
+        frappe.throw("The default Shipkia Account must use the New OMS platform.")
+
+    # The default New OMS account authenticates the shared inbound webhook. The
+    # shipment owner remains authoritative for tracking, support, and audit logs.
+    shipment = frappe.get_doc("Shipment Tracking Shipment", names[0])
+    owner_account = frappe.get_doc("Shipkia Account", shipment.shipkia_account)
+    if not cint(owner_account.allow_existing_operations):
+        frappe.local.response["http_status_code"] = 409
+        frappe.throw("Existing operations are disabled for this shipment account.")
+    return shipment, owner_account, gateway_account
 
 
 def authenticate(account):
@@ -162,8 +166,8 @@ def order_status_update():
         frappe.local.response["http_status_code"] = 400
         return {"success": False, "message": "X-Shipkia-Event-Id is required"}
 
-    shipment, account = get_owned_shipment(order_id)
-    authenticate(account)
+    shipment, owner_account, gateway_account = get_owned_shipment(order_id)
+    authenticate(gateway_account)
     validate_event_headers()
 
     lock_key = "shipkia:webhook:" + hashlib.sha256(order_id.encode()).hexdigest()
@@ -189,7 +193,7 @@ def order_status_update():
                 "stale": True,
                 "message": f"Older event ignored for order {order_id}",
             }
-            log = create_sync_log(shipment, account, order_id, event_id, data, result)
+            log = create_sync_log(shipment, owner_account, order_id, event_id, data, result)
             result["log"] = log.name
             frappe.db.commit()
             return result
@@ -203,7 +207,7 @@ def order_status_update():
             encounter_name=shipment.patient_encounter,
         )
 
-        log = create_sync_log(shipment, account, order_id, event_id, data)
+        log = create_sync_log(shipment, owner_account, order_id, event_id, data)
         notify_shipment_status_transition(shipment, previous_status)
         frappe.db.commit()
         return {

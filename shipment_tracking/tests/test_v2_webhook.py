@@ -12,8 +12,10 @@ from shipment_tracking.api.v2 import order_webhook
 class FakeShipment:
     def __init__(self):
         self.name = "SHIP-TEST"
+        self.shipkia_account = "Legacy"
         self.sales_invoice = "SINV-TEST"
         self.patient_encounter = None
+        self.saved = False
         self.shipkia_status = None
         self.normalized_status = None
         self.shipkia_stage = None
@@ -29,6 +31,10 @@ class FakeShipment:
         self.events.append(frappe._dict(value))
 
     def reload(self):
+        return self
+
+    def save(self, **kwargs):
+        self.saved = True
         return self
 
 
@@ -120,6 +126,85 @@ class TestV2Webhook(TestCase):
             )
         )
 
+    def test_lookup_accepts_legacy_shipment_with_default_new_oms_gateway(self):
+        shipment = FakeShipment()
+        owner_account = SimpleNamespace(name="Legacy", allow_existing_operations=1)
+        gateway_account = SimpleNamespace(name="New OMS", platform="New OMS")
+        settings = SimpleNamespace(default_shipkia_account="New OMS")
+
+        def get_doc(doctype, name):
+            if doctype == "Shipment Tracking Shipment":
+                return shipment
+            return owner_account if name == "Legacy" else gateway_account
+
+        with (
+            patch.object(frappe, "get_all", return_value=["SHIP-TEST"]) as get_all,
+            patch.object(frappe, "get_single", return_value=settings),
+            patch.object(frappe, "get_doc", side_effect=get_doc),
+        ):
+            result = order_webhook.get_owned_shipment("ORD-LEGACY")
+
+        self.assertEqual(result, (shipment, owner_account, gateway_account))
+        get_all.assert_called_once_with(
+            "Shipment Tracking Shipment",
+            filters={"shipkia_order_id": "ORD-LEGACY"},
+            pluck="name",
+            limit=2,
+        )
+
+    def test_new_oms_gateway_updates_legacy_owned_shipment(self):
+        shipment = FakeShipment()
+        owner_account = SimpleNamespace(name="Legacy")
+        gateway_account = SimpleNamespace(name="New OMS")
+        request = SimpleNamespace(get_json=lambda: {
+            "order_id": "ORD-LEGACY",
+            "stage": "In-Transit",
+            "status": "In Transit",
+            "courier_partner": "Delhivery",
+            "status_time": "2026-10-26T18:57:35Z",
+        })
+        headers = {
+            "X-Shipkia-Event-Id": "legacy-event-1",
+            "X-Shipkia-Event": "order_tracking",
+            "X-Shipkia-Record-Event": "records_updated",
+        }
+        log = SimpleNamespace(name="LOG-LEGACY")
+
+        with (
+            patch.object(frappe, "request", request),
+            patch.object(
+                order_webhook,
+                "request_header",
+                side_effect=lambda name: headers.get(name),
+            ),
+            patch.object(
+                order_webhook,
+                "get_owned_shipment",
+                return_value=(shipment, owner_account, gateway_account),
+            ),
+            patch.object(order_webhook, "authenticate") as authenticate,
+            patch.object(order_webhook, "validate_event_headers"),
+            patch.object(
+                frappe,
+                "cache",
+                return_value=SimpleNamespace(lock=lambda *args, **kwargs: nullcontext()),
+            ),
+            patch.object(frappe.db, "get_value", return_value=None),
+            patch.object(frappe.db, "commit"),
+            patch.object(order_webhook, "mirror_summary_fields"),
+            patch.object(order_webhook, "notify_shipment_status_transition"),
+            patch.object(order_webhook, "create_sync_log", return_value=log) as create_log,
+        ):
+            result = order_webhook.order_status_update()
+
+        self.assertTrue(result["success"])
+        self.assertTrue(shipment.saved)
+        self.assertEqual(shipment.shipkia_status, "In Transit")
+        self.assertEqual(shipment.shipkia_stage, "In-Transit")
+        self.assertEqual(shipment.delivery_partner, "Delhivery")
+        authenticate.assert_called_once_with(gateway_account)
+        self.assertIs(create_log.call_args.args[1], owner_account)
+
     def test_duplicate_event_returns_success_without_applying_again(self):
         shipment = FakeShipment()
         account = SimpleNamespace(name="New OMS")
@@ -132,7 +217,7 @@ class TestV2Webhook(TestCase):
         with (
             patch.object(frappe, "request", request),
             patch.object(order_webhook, "request_header", side_effect=lambda name: headers.get(name)),
-            patch.object(order_webhook, "get_owned_shipment", return_value=(shipment, account)),
+            patch.object(order_webhook, "get_owned_shipment", return_value=(shipment, account, account)),
             patch.object(order_webhook, "authenticate"),
             patch.object(order_webhook, "validate_event_headers"),
             patch.object(
