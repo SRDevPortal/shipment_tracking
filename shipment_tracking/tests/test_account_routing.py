@@ -52,7 +52,8 @@ class TestAccountRouting(TestCase):
                       grand_total=190, outstanding_amount=90, discount_amount=10, remarks="",
                       items=[doc(item_code="ITEM",item_name="Item",rate=100,qty=2,gst_hsn_code="1234",
                                  weight_per_unit=0.25,weight_uom="Kg")], taxes=[])
-        address = doc(name="ADDR",country="India",address_line1="Test address",address_line2="",city="Delhi",state="Delhi",pincode="110001",phone=None)
+        address = doc(name="ADDR",country="India",address_line1="Shopian\u2013Kulgam Road",
+                      address_line2="Patient\u2019s home\u00a0near hub",city="Delhi",state="Delhi",pincode="110001",phone=None)
         with patch.object(frappe,"get_doc",return_value=address):
             payload = v2.build_payload(invoice,account)
         self.assertEqual(payload["prepaid_amount"],100)
@@ -64,10 +65,21 @@ class TestAccountRouting(TestCase):
         self.assertEqual(payload["length"],10)
         self.assertNotIn("breadth",payload)
         self.assertEqual(payload["delivery_phone"], "+91-9876543210")
+        self.assertEqual(payload["delivery_address"], "Shopian-Kulgam Road")
+        self.assertEqual(payload["delivery_landmark"], "Patient's home near hub")
         for undocumented in ("remaining_cod_amount", "total_order_value", "updated_at",
                              "volumetric_weight", "delivery_city", "delivery_state", "delivery_country"):
             self.assertNotIn(undocumented,payload)
 
+    def test_v2_address_sanitizer_removes_unsupported_unicode(self):
+        self.assertEqual(
+            v2_payload.sanitize_shipkia_address(
+                "Caf\u00e9 \u2014 Block \u201cA\u201d \u2603"
+            ),
+            "Cafe - Block 'A'",
+        )
+
+        self.assertEqual(v2_payload.sanitize_shipkia_address("\u2603\u2603"), "")
     def test_v2_converts_exclusive_invoice_rate_to_inclusive_api_price(self):
         account = doc(platform="New OMS", v2_contract_verified=1, pickup_address="PA-1", order_channel="ERPNext",
                       v2_order_id_path="result.id", get_password=lambda *a, **k: "test-key",

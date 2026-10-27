@@ -2,8 +2,39 @@
 
 from decimal import Decimal, ROUND_HALF_UP
 import re
+import unicodedata
 
 import frappe
+from frappe.utils import cstr
+
+SHIPKIA_ADDRESS_CHARACTERS = set(" #$%&'()*+,-./:;<=>?@[]_{|}")
+
+
+def sanitize_shipkia_address(value):
+    text = cstr(value or "")
+    text = (
+        text.replace("\u2013", "-")
+        .replace("\u2014", "-")
+        .replace("\u2212", "-")
+        .replace("\u2018", "'")
+        .replace("\u2019", "'")
+        .replace("\u201c", "'")
+        .replace("\u201d", "'")
+        .replace("\u00a0", " ")
+    )
+    text = (
+        unicodedata.normalize("NFKD", text)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    text = "".join(
+        character
+        if character.isalnum() or character in SHIPKIA_ADDRESS_CHARACTERS
+        else " "
+        for character in text
+    )
+    return " ".join(text.split())
+
 
 
 def money(value):
@@ -57,6 +88,11 @@ def build_payload(invoice, account):
     phone = "+91-" + digits
     if not all([shipping.address_line1, shipping.pincode]):
         frappe.throw("Shipping address and postal code are required.")
+    delivery_address = sanitize_shipkia_address(shipping.address_line1)
+    if not delivery_address:
+        frappe.throw("Shipping address must contain English letters or numbers.")
+    delivery_landmark = sanitize_shipkia_address(shipping.address_line2)
+
     if invoice.is_return:
         frappe.throw("Return invoices cannot create V2 shipping orders.")
     products = []
@@ -82,8 +118,8 @@ def build_payload(invoice, account):
     payload = {"is_billing_same": shipping_name == billing_name, "product_details": products,
         "pickup_address": account.pickup_address, "order_channel": account.order_channel,
         "delivery_full_name": invoice.customer_name, "delivery_phone": phone,
-        "delivery_address": shipping.address_line1,
-        "delivery_landmark": shipping.address_line2 or "", "delivery_postal_code": shipping.pincode,
+        "delivery_address": delivery_address,
+        "delivery_landmark": delivery_landmark, "delivery_postal_code": shipping.pincode,
         "payment_method": "prepaid" if invoice.outstanding_amount <= 0 else "cod",
         "prepaid_amount": money(max(invoice.grand_total - invoice.outstanding_amount, 0)),
         "shipping_charge": 0, "transaction_charge": 0, "gift_wrap_charge": 0,
@@ -112,7 +148,11 @@ def build_payload(invoice, account):
     if not payload["is_billing_same"]:
         if not all([billing.address_line1, billing.pincode]):
             frappe.throw("Billing address and postal code are required.")
+        billing_address = sanitize_shipkia_address(billing.address_line1)
+        if not billing_address:
+            frappe.throw("Billing address must contain English letters or numbers.")
+        billing_landmark = sanitize_shipkia_address(billing.address_line2)
         payload.update({"billing_full_name": invoice.customer_name, "billing_phone": phone,
-            "billing_postal_code": billing.pincode, "billing_address": billing.address_line1,
-            "billing_landmark": billing.address_line2 or ""})
+            "billing_postal_code": billing.pincode, "billing_address": billing_address,
+            "billing_landmark": billing_landmark})
     return payload
