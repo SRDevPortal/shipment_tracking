@@ -80,10 +80,14 @@ already migrated account settings or change the default selection.
 
 Before enabling V2 order sending, verify its server-managed product behavior,
 JSON request format, rupee amounts, parcel units, order payload and response ID path with Shipkia,
-then enable **V2 Contract Verified**. The supplied workflow demonstrates an order
-payload but also contains product sync steps; it does not establish that product
-sync can be omitted. No live order is sent by migration. V2 tracking, webhooks
-and support are unavailable until their contracts/adapters are implemented.
+then enable **V2 Contract Verified**. No live order is sent by migration.
+
+New OMS order creation, order-details reconciliation, tracking, and secured status
+webhooks are implemented. Manual tracking first checks Shipkia and compares the
+normalized provider state with ERPNext. Matching data is reported as up to date;
+differences require explicit confirmation before they are applied. Newer terminal
+order states such as Cancelled take precedence over older tracking timeline events.
+New OMS support remains disabled until its support API contract is verified.
 
 Every shipment/log/ticket retains its account. Replacements require a reason,
 keep the original account and create a separate shipment. Old callbacks cannot
@@ -103,3 +107,20 @@ To use the backup provider, select **Legacy** as the default account and save.
 Keep existing account records and credentials: historical operations use their
 saved account. Reverting source code alone would lose V2 routing; take a full
 backup before any schema/code rollback.
+
+## Operations and diagnostics
+
+System Managers can call shipment_tracking.api.health.get_operational_health to
+obtain a read-only summary of shipment counts by account, Sync Log status counts,
+unresolved order attempts, and duplicate historical account/order identities. The
+endpoint returns counts only and does not expose credentials, request payloads,
+addresses, or patient data.
+
+Shipment Tracking Sync Log is the audit journal for provider requests and webhooks.
+Running and Uncertain Create Order attempts must be reconciled before another order
+can be sent. Successful tracking checks are retained for audit; define and review a
+site-specific retention policy before deleting historical logs.
+
+Database indexes support account/order ownership lookups, active shipment queries,
+and operational log filtering. Migrations add indexes only when the required
+DocTypes and columns exist.
