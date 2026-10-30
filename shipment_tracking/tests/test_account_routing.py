@@ -99,6 +99,76 @@ class TestAccountRouting(TestCase):
         self.assertEqual(payload["additional_discount"], 0)
         self.assertEqual(payload["transaction_charge"], 0)
 
+    def test_v2_combines_exclusive_cgst_and_sgst_per_item(self):
+        account = doc(platform="New OMS", v2_contract_verified=1, pickup_address="PA-1", order_channel="ERPNext",
+                      v2_order_id_path="result.id", get_password=lambda *a, **k: "test-key",
+                      default_parcel_length=10, default_parcel_breadth=10, default_parcel_height=10,
+                      default_dead_weight=500)
+        invoice = doc(name="INV-CGST", currency="INR", shipping_address_name="ADDR", customer_address="ADDR",
+                      contact_person=None, contact_mobile="9876543210", is_return=0, customer_name="Test",
+                      grand_total=118, outstanding_amount=118, discount_amount=0, remarks="",
+                      items=[doc(item_code="ITEM", item_name="Item", rate=100, qty=1, gst_hsn_code="1234",
+                                 weight_per_unit=250, weight_uom="Gram",
+                                 item_tax_rate='{"Output Tax CGST - SR": 9, "Output Tax SGST - SR": 9, "Output Tax IGST - SR": 18}')],
+                      taxes=[doc(rate=9, account_head="Output Tax CGST - SR", charge_type="On Net Total",
+                                 included_in_print_rate=0),
+                             doc(rate=9, account_head="Output Tax SGST - SR", charge_type="On Net Total",
+                                 included_in_print_rate=0)])
+        address = doc(name="ADDR", address_line1="Test address", address_line2="", pincode="110001", phone=None)
+        with patch.object(frappe, "get_doc", return_value=address):
+            payload = v2.build_payload(invoice, account)
+        self.assertEqual(payload["product_details"][0]["tax_rate"], 18)
+        self.assertEqual(payload["product_details"][0]["unit_price"], 118)
+        self.assertEqual(payload["additional_discount"], 0)
+        self.assertEqual(payload["transaction_charge"], 0)
+
+    def test_v2_uses_only_tax_accounts_active_on_invoice(self):
+        context = v2_payload.invoice_tax_context(doc(
+            items=[doc(item_code="ITEM", item_tax_rate={
+                "Output Tax CGST - SR": 9,
+                "Output Tax SGST - SR": 9,
+                "Output Tax IGST - SR": 18,
+            })],
+            taxes=[doc(rate=18, account_head="Output Tax IGST - SR", charge_type="On Net Total",
+                       included_in_print_rate=1)],
+        ))
+        rate = v2_payload.effective_item_tax_rate(
+            doc(item_code="ITEM", item_tax_rate={
+                "Output Tax CGST - SR": 9,
+                "Output Tax SGST - SR": 9,
+                "Output Tax IGST - SR": 18,
+            }), context,
+        )
+        self.assertEqual(rate, 18)
+
+    def test_v2_supports_mixed_item_gst_rates(self):
+        context = v2_payload.invoice_tax_context(doc(
+            items=[
+                doc(item_code="FIVE", item_tax_rate={"CGST": 2.5, "SGST": 2.5}),
+                doc(item_code="EIGHTEEN", item_tax_rate={"CGST": 9, "SGST": 9}),
+            ],
+            taxes=[
+                doc(rate=0, account_head="CGST", charge_type="On Net Total", included_in_print_rate=1),
+                doc(rate=0, account_head="SGST", charge_type="On Net Total", included_in_print_rate=1),
+            ],
+        ))
+        self.assertEqual(
+            v2_payload.effective_item_tax_rate(doc(item_code="FIVE", item_tax_rate={"CGST": 2.5, "SGST": 2.5}), context), 5,
+        )
+        self.assertEqual(
+            v2_payload.effective_item_tax_rate(doc(item_code="EIGHTEEN", item_tax_rate={"CGST": 9, "SGST": 9}), context), 18,
+        )
+
+    def test_v2_rejects_unsupported_tax_charge_type(self):
+        invoice = doc(
+            items=[doc(item_code="ITEM", item_tax_rate={"GST": 18})],
+            taxes=[doc(rate=18, account_head="GST", charge_type="On Previous Row Total",
+                       included_in_print_rate=0)],
+        )
+        with self.assertRaises(frappe.ValidationError):
+            v2_payload.invoice_tax_context(invoice)
+
+
     def test_v2_send_uses_published_endpoint_and_api_key(self):
         account=doc(api_base_url="https://api.shipkia.com",create_order_url=None,
                     v2_order_id_path="result.id",get_password=lambda *a,**k:"test-key")

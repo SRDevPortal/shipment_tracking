@@ -1,6 +1,6 @@
 """Build and validate New OMS create-order payloads."""
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import re
 import unicodedata
 
@@ -56,6 +56,75 @@ def weight_in_grams(row):
         frappe.throw(f"Unsupported item weight unit for V2: {row.get('weight_uom')}")
     return money(value * factors[unit])
 
+def item_tax_rates(row):
+    """Return the ERPNext item-tax mapping with numeric rates."""
+    raw_rates = row.get("item_tax_rate")
+    if not raw_rates:
+        return {}
+    try:
+        rates = frappe.parse_json(raw_rates) if isinstance(raw_rates, str) else raw_rates
+        if not isinstance(rates, dict):
+            raise ValueError
+        return {
+            cstr(account_head): Decimal(str(rate or 0))
+            for account_head, rate in rates.items()
+        }
+    except (InvalidOperation, TypeError, ValueError):
+        frappe.throw(f"Unable to read GST rates for item {row.item_code}.")
+
+
+def invoice_tax_context(invoice):
+    """Validate supported ERPNext taxes and identify active tax accounts."""
+    item_accounts = {
+        account_head
+        for row in invoice.items or []
+        for account_head in item_tax_rates(row)
+    }
+    tax_rows = [
+        tax
+        for tax in invoice.taxes or []
+        if Decimal(str(tax.get("rate") or 0)) > 0
+        or cstr(tax.get("account_head")) in item_accounts
+    ]
+    if any(tax.get("charge_type") not in (None, "On Net Total") for tax in tax_rows):
+        frappe.throw("V2 requires On Net Total taxes for this invoice tax structure.")
+
+    inclusion_flags = {bool(tax.get("included_in_print_rate")) for tax in tax_rows}
+    if len(inclusion_flags) > 1:
+        frappe.throw("V2 requires consistent inclusive tax settings across invoice tax rows.")
+
+    return {
+        "rows": tax_rows,
+        "account_heads": {
+            cstr(tax.get("account_head"))
+            for tax in tax_rows
+            if tax.get("account_head")
+        },
+        "prices_include_tax": inclusion_flags.pop() if inclusion_flags else True,
+    }
+
+
+def effective_item_tax_rate(row, tax_context):
+    """Combine only the IGST or CGST/SGST accounts active on this invoice."""
+    rates = item_tax_rates(row)
+    matching_rates = [
+        rate
+        for account_head, rate in rates.items()
+        if account_head in tax_context["account_heads"] and rate > 0
+    ]
+    if matching_rates:
+        return sum(matching_rates, Decimal("0"))
+
+    fallback_rates = [
+        Decimal(str(tax.get("rate") or 0))
+        for tax in tax_context["rows"]
+        if Decimal(str(tax.get("rate") or 0)) > 0
+    ]
+    if fallback_rates:
+        return sum(fallback_rates, Decimal("0"))
+    return Decimal("0")
+
+
 
 def build_payload(invoice, account):
     if account.platform != "New OMS" or not account.v2_contract_verified:
@@ -96,20 +165,20 @@ def build_payload(invoice, account):
     if invoice.is_return:
         frappe.throw("Return invoices cannot create V2 shipping orders.")
     products = []
-    percentage_taxes = [tax for tax in invoice.taxes if (tax.rate or 0) > 0]
-    if len(percentage_taxes) > 1 or any(tax.get("charge_type") not in (None, "On Net Total") for tax in percentage_taxes):
-        frappe.throw("V2 requires a verified adapter for this invoice tax structure.")
-    tax_rate = percentage_taxes[0].rate if percentage_taxes else 0
-    prices_include_tax = not percentage_taxes or bool(percentage_taxes[0].get("included_in_print_rate"))
-    tax_multiplier = Decimal("1") if prices_include_tax else Decimal("1") + Decimal(str(tax_rate)) / 100
+    tax_context = invoice_tax_context(invoice)
     for row in invoice.items:
         if not row.item_code:
             continue
         if row.qty <= 0 or Decimal(str(row.qty)) != Decimal(str(int(row.qty))) or row.rate < 0:
             frappe.throw("V2 products require positive whole quantities and non-negative prices.")
+        tax_rate = effective_item_tax_rate(row, tax_context)
+        tax_multiplier = (
+            Decimal("1") if tax_context["prices_include_tax"]
+            else Decimal("1") + tax_rate / 100
+        )
         products.append({"product_name": row.item_name, "unit_price": money(Decimal(str(row.rate)) * tax_multiplier),
                          "quantity": int(row.qty), "hsn_code": row.get("gst_hsn_code") or account.get("default_hsn_code") or "",
-                         "weight": weight_in_grams(row), "tax_rate": tax_rate,
+                         "weight": weight_in_grams(row), "tax_rate": money(tax_rate),
                          "tax_preference": "Inclusive", "product_discount": 0})
     if not products:
         frappe.throw("At least one product is required.")
