@@ -2,10 +2,11 @@
 import frappe
 from frappe.utils import cint
 from shipment_tracking.api.accounts import get_account, reference_account
+from shipment_tracking.services.order_results import provider_summary, result
 from shipment_tracking.services.shipments import save_order_shipment
 
 
-def run(invoice_name, account_name, adapter, force=0, replacement_reason=None):
+def run(invoice_name, account_name, adapter, force=0, replacement_reason=None, ui_mode=0):
     # Lock spans journaling, network call and commit. Running is durable before POST.
     with frappe.cache().lock("shipkia:create:" + invoice_name, timeout=180, blocking_timeout=2):
         invoice = frappe.get_doc("Sales Invoice", invoice_name)
@@ -53,12 +54,34 @@ def run(invoice_name, account_name, adapter, force=0, replacement_reason=None):
             log.error_message = "No confirmed order ID. Check Shipkia before resolving this attempt."
             log.save(ignore_permissions=True)
             frappe.db.commit()
+            if cint(ui_mode):
+                return result(
+                    "uncertain", "Order Outcome Requires Review",
+                    "Shipkia may have received this request. Check Shipkia before retrying.",
+                    request_sent=True, account=account.name, sync_log=log.name,
+                )
             frappe.throw("Order outcome is uncertain. Check Shipkia before retrying; automatic retry is blocked.")
         if response.status_code not in (200, 201, 202):
             log.status = "Failed" if response.status_code in (400, 401, 403, 404, 422) else "Uncertain"
             log.error_message = "Provider rejected order" if log.status == "Failed" else "Provider outcome is uncertain"
             log.save(ignore_permissions=True)
             frappe.db.commit()
+            if cint(ui_mode):
+                summary = provider_summary(
+                    body,
+                    "Shipkia rejected the order." if log.status == "Failed"
+                    else "Shipkia may have received this request. Check Shipkia before retrying.",
+                )
+                return result(
+                    "provider_rejected" if log.status == "Failed" else "uncertain",
+                    "Shipkia Rejected the Order" if log.status == "Failed"
+                    else "Order Outcome Requires Review",
+                    summary["message"], request_sent=True,
+                    retry_allowed=log.status == "Failed", account=account.name,
+                    sync_log=log.name,
+                    validation_messages=summary["validation_messages"],
+                    provider_trace_id=summary["provider_trace_id"],
+                )
             frappe.throw("Order was not confirmed. Review the sync log before retrying.")
         try:
             shipment = save_order_shipment(invoice, account, str(order_id), body, old, replacement_reason)
@@ -76,6 +99,24 @@ def run(invoice_name, account_name, adapter, force=0, replacement_reason=None):
             log.error_message = "Provider created an order but local persistence failed. Reconcile; do not resend."
             log.save(ignore_permissions=True)
             frappe.db.commit()
+            if cint(ui_mode):
+                return result(
+                    "local_save_failed", "Order Created - ERPNext Review Required",
+                    "Shipkia created the order, but ERPNext could not save the local shipment. Do not resend.",
+                    request_sent=True, account=account.name, order_id=str(order_id),
+                    sync_log=log.name,
+                )
             raise
+        summary = provider_summary(body, "Order created successfully.")
+        provider_result = body.get("result") if isinstance(body, dict) else None
+        provider_status = provider_result.get("status") if isinstance(provider_result, dict) else None
+        if cint(ui_mode):
+            return result(
+                "created", "Shipkia Order Created", summary["message"],
+                success=True, request_sent=True, account=account.name,
+                order_id=str(order_id), shipment=shipment.name, sync_log=log.name,
+                provider_status=provider_status,
+                provider_trace_id=summary["provider_trace_id"],
+            )
         return {"success": True, "order_id": str(order_id), "shipment": shipment.name,
                 "account": account.name, "message": "Shipkia order created: " + str(order_id)}

@@ -24,14 +24,19 @@ frappe.ui.form.on("Sales Invoice", {
                     const context = r.message;
                     const send = (reason, dialog) => frappe.call({
                         method: "shipment_tracking.api.dispatch.create_order_for_sales_invoice",
-                        args: {invoice_name: frm.doc.name, force: shipkia_order_id ? 1 : 0, replacement_reason: reason || "", confirmed_account: context.account},
+                        args: {
+                            invoice_name: frm.doc.name,
+                            force: shipkia_order_id ? 1 : 0,
+                            replacement_reason: reason || "",
+                            confirmed_account: context.account,
+                            ui_mode: 1
+                        },
                         freeze: true,
                         freeze_message: __("Creating Shipkia order..."),
                         callback(result) {
-                            if (!result.exc) {
+                            if (!result.exc && result.message) {
                                 if (dialog) dialog.hide();
-                                frappe.msgprint(result.message.message);
-                                frm.reload_doc();
+                                show_order_result(frm, result.message);
                             }
                         },
                         always() {
@@ -102,6 +107,97 @@ function show_order_confirmation(context, on_confirm) {
         }
     });
     dialog.fields_dict.summary.$wrapper.html(order_confirmation_html(context));
+    dialog.show();
+}
+
+function order_result_rows(result) {
+    const rows = [];
+    const add = (label, value) => {
+        if (!value) return;
+        rows.push(`
+            <div style="display:grid;grid-template-columns:42% 58%;padding:10px 14px;border-bottom:1px solid var(--border-color);">
+                <span class="text-muted">${__(label)}</span>
+                <strong>${frappe.utils.escape_html(String(value))}</strong>
+            </div>`);
+    };
+    add("Shipkia Order", result.order_id);
+    return rows.join("");
+}
+function order_failure_guidance(result) {
+    const outcome = result.outcome || "local_validation_failed";
+    const message = String(result.message || "").toLowerCase();
+    if (outcome === "uncertain") {
+        return __("Do not retry. Check Shipkia and reconcile the existing attempt.");
+    }
+    if (outcome === "local_save_failed") {
+        return __("Do not resend. Shipkia created the order and ERPNext requires reconciliation.");
+    }
+    if (message.includes("api key") || message.includes("unauthorized") || message.includes("authentication")) {
+        return __("Check the API key configured for New OMS. No Shipkia order was created. You can retry after correcting the configuration.");
+    }
+    if (message.includes("postal") || message.includes("pincode")) {
+        return __("Correct the delivery postal code, then try again. No Shipkia order was created.");
+    }
+    if (message.includes("phone") || message.includes("mobile")) {
+        return __("Add a valid customer mobile number, then try again. No Shipkia order was created.");
+    }
+    if (message.includes("pickup")) {
+        return __("Check the pickup address configured for this Shipkia account. No Shipkia order was created.");
+    }
+    return result.request_sent
+        ? __("No Shipkia order was created. Correct the issue before retrying.")
+        : __("No request was sent to Shipkia. Correct the issue and try again.");
+}
+
+
+function order_result_html(result) {
+    const outcome = result.outcome || "local_validation_failed";
+    if (outcome === "created") {
+        const details = order_result_rows(result);
+        return `
+            <div style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;margin-bottom:12px;">${details}</div>
+            <div style="padding:10px 12px;border-radius:8px;background:var(--subtle-fg);">
+                ${frappe.utils.escape_html(String(result.message || __("Order created successfully")))}
+            </div>`;
+    }
+    const colors = {
+        created: "var(--green-700)",
+        local_validation_failed: "var(--blue-500)",
+        provider_rejected: "var(--red-500)",
+        uncertain: "var(--orange-500)",
+        local_save_failed: "var(--orange-500)"
+    };
+    const guidance = order_failure_guidance(result);
+    const validations = (result.validation_messages || [])
+        .filter(Boolean)
+        .map((message) => `<li style="margin:5px 0;">${frappe.utils.escape_html(String(message))}</li>`)
+        .join("");
+    const details = order_result_rows(result);
+    return `
+        ${details ? `<div style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;margin-bottom:12px;">${details}</div>` : ""}
+        <div style="padding:10px 12px;border-radius:8px;background:var(--subtle-fg);">
+            ${frappe.utils.escape_html(String(result.message || __("No additional details were provided.")))}
+        </div>
+        ${validations ? `<ul style="margin:10px 0 0;padding-left:22px;">${validations}</ul>` : ""}
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;color:${colors[outcome] || "var(--text-muted)"};">
+            <span style="font-size:16px;">&#9679;</span>
+            <span>${frappe.utils.escape_html(guidance)}</span>
+        </div>`;
+}
+
+function show_order_result(frm, result) {
+    const dialog = new frappe.ui.Dialog({
+        title: __(result.outcome === "provider_rejected" ? "Unable to Create Shipkia Order" : (result.title || (result.success ? "Shipkia Order Created" : "Order Could Not Be Created"))),
+        fields: [{fieldname: "summary", fieldtype: "HTML"}],
+        primary_action_label: __(result.success ? "Done" : "Close"),
+        primary_action() {
+            dialog.hide();
+            if (result.success) {
+                frm.reload_doc();
+            }
+        }
+    });
+    dialog.fields_dict.summary.$wrapper.html(order_result_html(result));
     dialog.show();
 }
 

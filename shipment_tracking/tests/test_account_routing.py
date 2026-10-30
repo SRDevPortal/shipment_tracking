@@ -188,7 +188,7 @@ class TestAccountRouting(TestCase):
             returned,body,order_id=v2.send(account,{})
         self.assertIsNone(order_id)
 
-    def run_order(self, adapter, pending=False, previous=False, reason=None, persist_error=False):
+    def run_order(self, adapter, pending=False, previous=False, reason=None, persist_error=False, ui_mode=0):
         invoice = doc(name="INV-TEST", docstatus=1, customer="Test", check_permission=Mock(),
                       si_shipkia_order_id="OLD" if previous else None,
                       si_shipkia_shipment="OLD-SHIP" if previous else None)
@@ -215,7 +215,8 @@ class TestAccountRouting(TestCase):
             stack.enter_context(patch.object(orders,"get_account",return_value=doc(name="New OMS")))
             stack.enter_context(patch.object(orders,"save_order_shipment",side_effect=persist))
             try:
-                result=orders.run("INV-TEST","New OMS",adapter,force=int(previous),replacement_reason=reason)
+                result=orders.run("INV-TEST","New OMS",adapter,force=int(previous),
+                                  replacement_reason=reason,ui_mode=ui_mode)
                 return result,log,calls
             except Exception as exc:
                 return exc,log,calls
@@ -255,10 +256,42 @@ class TestAccountRouting(TestCase):
         self.assertEqual(log.status,"Failed")
         self.assertNotIn("linked",calls)
 
+    def test_ui_success_returns_provider_message_and_log_reference(self):
+        adapter=self.adapter()
+        adapter.send.return_value=(doc(status_code=201),{
+            "success":True,"message":"Order created successfully",
+            "result":{"id":"NEW-1","status":"New"},"traceId":"trace-1"},"NEW-1")
+        result,log,calls=self.run_order(adapter,ui_mode=1)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["outcome"],"created")
+        self.assertEqual(result["message"],"Order created successfully")
+        self.assertEqual(result["sync_log"],"LOG-TEST")
+        self.assertEqual(result["provider_trace_id"],"trace-1")
+
+    def test_ui_rejection_is_retryable_but_uncertain_is_not(self):
+        rejected=self.adapter(status=422)
+        rejected.send.return_value=(doc(status_code=422),{
+            "message":"Invalid postal code",
+            "errors":[{"message":"Postal code is required"}]},None)
+        result,log,calls=self.run_order(rejected,ui_mode=1)
+        self.assertEqual(result["outcome"],"provider_rejected")
+        self.assertTrue(result["retry_allowed"])
+        self.assertEqual(result["message"],"Invalid postal code")
+        uncertain,log,calls=self.run_order(self.adapter(status=503),ui_mode=1)
+        self.assertEqual(uncertain["outcome"],"uncertain")
+        self.assertFalse(uncertain["retry_allowed"])
+
     def test_local_failure_after_creation_blocks_resending(self):
         result,log,calls=self.run_order(self.adapter(),persist_error=True)
         self.assertEqual(log.status,"Uncertain")
         self.assertEqual(log.shipkia_order_id,"NEW-1")
+    def test_ui_local_save_failure_never_allows_resend(self):
+        result,log,calls=self.run_order(self.adapter(),persist_error=True,ui_mode=1)
+        self.assertEqual(result["outcome"],"local_save_failed")
+        self.assertEqual(result["order_id"],"NEW-1")
+        self.assertFalse(result["retry_allowed"])
+        self.assertEqual(log.status,"Uncertain")
+
 
     def test_replacement_requires_reason(self):
         adapter=self.adapter()
@@ -303,6 +336,19 @@ class TestAccountRouting(TestCase):
             with self.assertRaises(frappe.ValidationError):
                 dispatch.create_order_for_sales_invoice("INV-TEST",confirmed_account="New OMS")
         run.assert_not_called()
+    def test_ui_mode_returns_local_validation_without_sending(self):
+        from shipment_tracking.api import dispatch
+        invoice=doc(check_permission=Mock(),si_shipkia_shipment=None)
+        account=doc(name="New OMS",platform="New OMS")
+        with patch.object(frappe,"get_doc",return_value=invoice), \
+             patch.object(dispatch,"get_account",return_value=account), \
+             patch.object(orders,"run",side_effect=frappe.ValidationError("Mobile number is missing")):
+            result=dispatch.create_order_for_sales_invoice(
+                "INV-TEST",confirmed_account="New OMS",ui_mode=1)
+        self.assertEqual(result["outcome"],"local_validation_failed")
+        self.assertFalse(result["request_sent"])
+        self.assertTrue(result["retry_allowed"])
+
 
     def test_legacy_tracking_cannot_use_v2_account(self):
         from shipment_tracking.api import accounts

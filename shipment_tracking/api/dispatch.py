@@ -1,27 +1,45 @@
 import frappe
 from frappe.utils import cint, flt
 from .accounts import get_account, reference_account
+from shipment_tracking.services.order_results import local_validation
 
 
 @frappe.whitelist(methods=["POST"])
-def create_order_for_sales_invoice(invoice_name, force=0, replacement_reason=None, confirmed_account=None):
-    invoice = frappe.get_doc("Sales Invoice", invoice_name)
-    invoice.check_permission("read")
-    invoice.check_permission("write")
-    name = None
-    if cint(force) and getattr(invoice, "si_shipkia_shipment", None):
-        name = reference_account(frappe.get_doc("Shipment Tracking Shipment", invoice.si_shipkia_shipment))
-    account = get_account(name, new_order=True)
-    if confirmed_account and confirmed_account != account.name:
-        frappe.throw("The selected account has changed. Confirm the order again.")
-    from shipment_tracking.services.orders import run
-    if account.platform == "Legacy":
-        from . import order as adapter
-    elif account.platform == "New OMS":
-        from .v2 import order as adapter
-    else:
-        frappe.throw("Unsupported Shipkia platform.")
-    return run(invoice_name, account.name, adapter, force, replacement_reason)
+def create_order_for_sales_invoice(
+    invoice_name,
+    force=0,
+    replacement_reason=None,
+    confirmed_account=None,
+    ui_mode=0,
+):
+    try:
+        invoice = frappe.get_doc("Sales Invoice", invoice_name)
+        invoice.check_permission("read")
+        invoice.check_permission("write")
+        name = None
+        if cint(force) and getattr(invoice, "si_shipkia_shipment", None):
+            name = reference_account(
+                frappe.get_doc("Shipment Tracking Shipment", invoice.si_shipkia_shipment)
+            )
+        account = get_account(name, new_order=True)
+        if confirmed_account and confirmed_account != account.name:
+            frappe.throw("The selected account has changed. Confirm the order again.")
+        from shipment_tracking.services.orders import run
+        if account.platform == "Legacy":
+            from . import order as adapter
+        elif account.platform == "New OMS":
+            from .v2 import order as adapter
+        else:
+            frappe.throw("Unsupported Shipkia platform.")
+        return run(
+            invoice_name, account.name, adapter, force, replacement_reason,
+            ui_mode=ui_mode,
+        )
+    except frappe.ValidationError as exc:
+        if cint(ui_mode):
+            frappe.clear_messages()
+            return local_validation(str(exc))
+        raise
 
 
 @frappe.whitelist()
