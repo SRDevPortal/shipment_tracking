@@ -114,7 +114,6 @@
    "fieldtype": "Data",
    "label": "Tracking URL",
    "depends_on": "eval:doc.enable_manual_tracking_refresh",
-   "mandatory_depends_on": "eval:doc.enable_manual_tracking_refresh",
    "hidden": 1,
    "reqd": 0
   },
@@ -227,7 +226,6 @@
    "fieldtype": "Password",
    "label": "Webhook Secret",
    "depends_on": "eval:doc.enable_webhook_security",
-   "mandatory_depends_on": "eval:doc.enable_webhook_security",
    "description": "Secret key for validating incoming webhooks",
    "hidden": 1,
    "reqd": 0
